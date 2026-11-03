@@ -1,6 +1,7 @@
 package com.example.jobaudit.api;
 
 import com.example.jobaudit.domain.ErrorResponse;
+import com.example.jobaudit.exception.AuditNotFoundException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -29,6 +30,14 @@ public class GlobalExceptionHandler {
                 .collect(Collectors.joining("；"));
         log.warn("参数校验失败：{}", message);
         return ErrorResponse.of(400, message);
+    }
+
+    /** 业务异常：审计记录不存在 → 404 */
+    @ExceptionHandler(AuditNotFoundException.class)
+    @ResponseStatus(HttpStatus.NOT_FOUND)
+    public ErrorResponse handleNotFound(AuditNotFoundException ex) {
+        log.warn("查询失败：{}", ex.getMessage());
+        return ErrorResponse.of(404, ex.getMessage());
     }
 
     /** 兜底：未知异常 → 500，堆栈只进日志（含 MDC traceId），前端只收友好提示 */
