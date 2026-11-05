@@ -35,4 +35,16 @@ class FaultToleranceTest {
         assertNull(result.reason());
         assertNull(result.confidence());
     }
+
+    @Test
+    void shouldDefaultConfidenceWhenModelOmitsIt() {
+        // 只有 confidence 缺失：signalType/reason 齐全，应正常返回并兜底 0.8，而不是丢掉整条信号
+        String json = "{\"signalType\":\"pua_culture\",\"reason\":\"JD 使用狼性话术\"}";
+
+        ExtractedSignal result = service.parseOrDegrade(json);
+
+        assertEquals("OK", result.status());
+        assertEquals("pua_culture", result.signalType());
+        assertEquals(0.8, result.confidence(), 0.0);
+    }
 }
