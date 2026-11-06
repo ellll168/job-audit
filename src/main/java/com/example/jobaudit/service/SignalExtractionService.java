@@ -14,7 +14,7 @@ import org.springframework.stereotype.Service;
 
 /**
  * LLM 语义信号提取：识别规则引擎覆盖不到的语义级风险。
- * 输出由 ResponseFormat + JsonSchema 强制约束，strict 由配置 langchain4j.open-ai.chat-model.strict-json-schema=true 开启。
+ * 输出由 json_object 响应模式 + Prompt 契约 + 服务端 parseOrDegrade 校验共同约束。
  * 解析失败一律转 pending_review，不抛异常。
  */
 @Service
@@ -38,13 +38,24 @@ public class SignalExtractionService {
             擅长识别招聘话术背后隐藏的真实用工风险。
 
             # Task
-            阅读用户提供的招聘 JD 全文，识别规则引擎无法覆盖的语义陷阱，仅限以下三类：
+            阅读用户提供的招聘 JD 全文，识别规则引擎无法覆盖的语义陷阱，仅限以下四类：
             1. pua_culture：狼性文化、PUA 式管理话术，如“公司是家”“不加班就是不奋斗”\
             “年轻人要能吃亏”“不接受质疑就别来”。
-            2. overpackaged：过度包装、画大饼，如“期权很快上市”“行业第一”“未来合伙人”，\
-            但缺少可验证的具体信息。
+            2. overpackaged：过度包装、画大饼，只描述公司福利、期权、发展空间等空泛内容，\
+            却不提具体业务方向、岗位职责或明确薪酬。
             3. broad_duty：职责极度宽泛、一人干全栈，如同时要求产品、前端、后端、运维、\
             市场、售后且无清晰边界。
+            4. salary_mismatch：薪资要求错位，岗位要求极高（全栈、总监级、多领域精通）\
+            但给出的薪资远低于市场合理区间。
+
+            # Few-shot Examples
+            示例 1（overpackaged）
+            输入：我们提供广阔的发展空间、扁平化管理、零食下午茶，薪资面议。
+            输出：{"signalType":"overpackaged","reason":"JD大量描述公司福利和期权，但未给出具体业务方向和明确薪酬","confidence":0.85}
+
+            示例 2（salary_mismatch）
+            输入：要求精通Java、前端、运维、算法，薪资4-6K。
+            输出：{"signalType":"salary_mismatch","reason":"岗位要求极高，涵盖全栈及算法，但薪资水平远低于市场合理区间","confidence":0.9}
 
             # Constraints
             1. 只输出一条最严重、最典型的语义信号，且判定依据必须能在 JD 原文中找到对应表述。
@@ -55,16 +66,19 @@ public class SignalExtractionService {
                - “急招/火速/urgent”但未写明具体业务线（urgency_noise）
                - “培训费/押金/先培训后上岗/包就业”（scam_risk）
                - “抗压/能吃苦”与“单休/大小周”同时出现（overwork_risk）
+               注意：硬规则只判断薪资是否透明（面议/跨度异常），不判断薪资与要求是否匹配；\
+               要求极高但薪资极低，仍应提取 salary_mismatch。
             3. 不得臆测 JD 中没有的信息，不得输出歧视性或违法判断。
             4. reason 用中文，一句话说明触发依据，并引用 JD 中的关键短语（用引号包裹）。
             5. confidence 为 0~1 的小数，表示你的把握程度。
-            6. 三类信号均未命中时，signalType 返回 "none"，reason 返回 "未发现语义陷阱"，\
+            6. 以上四类信号均未命中时，signalType 返回 "none"，reason 返回 "未发现语义陷阱"，\
             confidence 返回 0.0。
 
             # Output Format
-            严格遵守约定的 JSON Schema，只输出 JSON 对象，不要 Markdown、不要代码块、不要任何解释性文字：
-            {"signalType": "pua_culture | overpackaged | broad_duty | none", "reason": "中文说明，含原文关键短语", "confidence": 0.0}
-            字段不可缺失、不可改名、不可新增。
+            只输出一个 JSON 对象，不要 Markdown、不要代码块、不要任何解释性文字，\
+            也不要输出示例中的内容。字段必须严格为以下三个，不可缺失、不可改名、不可新增：
+            {"signalType": "pua_culture | overpackaged | broad_duty | salary_mismatch | none", \
+            "reason": "中文说明，含原文关键短语", "confidence": 0.0}
             """);
 
     private final ChatModel chatModel;
