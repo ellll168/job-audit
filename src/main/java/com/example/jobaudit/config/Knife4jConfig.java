@@ -6,14 +6,18 @@ import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.info.Info;
 import org.springdoc.core.models.GroupedOpenApi;
 import org.springdoc.core.properties.SpringDocConfigProperties;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 /**
  * Knife4j / OpenAPI 文档配置。
- * 启动后访问 http://localhost:8080/doc.html 查看全部接口。
+ * 默认关闭（application.properties 中 knife4j.enable=false），需要文档时用启动参数开启：
+ * --springdoc.api-docs.enabled=true --knife4j.enable=true
+ * 开启后访问 http://localhost:8080/doc.html 查看全部接口。
  */
 @Configuration
+@ConditionalOnProperty(name = "knife4j.enable", havingValue = "true")
 public class Knife4jConfig {
 
     @Bean

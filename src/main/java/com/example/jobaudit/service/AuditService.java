@@ -209,33 +209,6 @@ public class AuditService {
     }
 
     /**
-     * 一次性管理操作：回填历史记录中 ai_verdict 为空的记录。
-     * 逐条重新调用 LLM 生成锐评并 updateById 回写；单条失败（如余额不足）不中断整体，仅跳过。
-     */
-    public java.util.Map<String, Integer> backfillAiVerdicts() {
-        List<JobAudit> empty = jobAuditMapper.selectList(new QueryWrapper<JobAudit>()
-                .and(w -> w.isNull("ai_verdict").or().eq("ai_verdict", "")));
-        log.info("开始回填 AI 锐评，待处理记录数={}", empty.size());
-        int updated = 0;
-        for (JobAudit audit : empty) {
-            try {
-                List<AuditSignalRecord> signals = withoutSystemSignals(signalRecordMapper.selectList(
-                        new QueryWrapper<AuditSignalRecord>().eq("audit_id", audit.getId()).orderByAsc("id")));
-                String verdict = generateVerdict(audit.getInputText(), signals);
-                if (verdict != null) {
-                    audit.setAiVerdict(verdict);
-                    jobAuditMapper.updateById(audit);
-                    updated++;
-                }
-            } catch (Exception e) {
-                log.warn("回填失败，auditId={}，跳过", audit.getId(), e);
-            }
-        }
-        log.info("AI 锐评回填完成，扫描={}，更新={}", empty.size(), updated);
-        return java.util.Map.of("scanned", empty.size(), "updated", updated);
-    }
-
-    /**
      * 一句话毒舌锐评：JD 原文 + 风险信号组装 Prompt。
      * 模型调用失败不阻断主流程，降级为 null（前端可隐藏该区块）。
      */

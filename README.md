@@ -1,5 +1,11 @@
 # job-audit 岗位反向尽调助手
 
+![CI](https://github.com/ellll168/job-audit/actions/workflows/ci.yml/badge.svg)
+![Java](https://img.shields.io/badge/Java-17-blue)
+![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.5.7-brightgreen)
+![Vue](https://img.shields.io/badge/Vue-3-42b883)
+![License](https://img.shields.io/badge/License-MIT-yellow)
+
 输入一段招聘 JD，识别其中的风险信号——薪资不透明、职责模糊、要求矛盾、紧迫话术、招转培骗局、超长待机、PUA 话术、过度包装等，帮助求职者在投简历前"反向尽调"一家公司。
 
 **规则引擎兜底确定性问题，大模型负责规则覆盖不到的语义陷阱；模型不可用时自动降级，绝不把"AI 挂了"伪装成"岗位安全"。**
@@ -17,7 +23,7 @@
 | 后端 | Caffeine | 进程内缓存，24h TTL / 2000 上限 |
 | 后端 | Flyway | 数据库 schema 版本管理（V1 建表、V2 加列） |
 | 后端 | 数据库 | MySQL 8+（开发实测 9.0）；演示模式用 H2 2.3 |
-| 后端 | 接口文档 | Knife4j 4.5.0 + springdoc 2.8.9 → `/doc.html` |
+| 后端 | 接口文档 | Knife4j 4.5.0 + springdoc 2.8.9（默认关闭，按需启动） |
 | 后端 | 日志 | SLF4J + MDC `traceId` 链路追踪 |
 | 前端 | Vue | 3（`<script setup lang="ts">`） |
 | 前端 | Vite | 8.3（`@vitejs/plugin-vue`） |
@@ -105,7 +111,9 @@ Flyway 脚本位于 `src/main/resources/db/migration/`，启动时自动执行�
 | POST | `/api/audits` | 提交 JD 审计，body：`{"companyName":"...","inputText":"..."}`（`inputText` 上限 8000 字） |
 | GET | `/api/audits/{id}` | 查询审计记录及关联信号，含 `aiVerdict` |
 | GET | `/api/audits/{id}/questions` | 生成面试反问话术（JD + 风险信号作为上下文；结果回写 `interview_questions`，重复请求命中缓存不入模型） |
-| POST | `/api/audits/backfill-verdicts` | 历史数据回填锐评，**仅 `dev` profile 暴露** |
+
+> 接口描述默认关闭：`/v3/api-docs` 与 `/swagger-ui.html` 均返回 404，`/doc.html` 只剩无数据的静态外壳（Knife4j 前端资源），不包含任何接口结构。本地调试需要文档时：
+> `mvn spring-boot:run -Dspring-boot.run.arguments="--springdoc.api-docs.enabled=true --knife4j.enable=true"`
 
 响应示例（`POST /api/audits`）：
 
