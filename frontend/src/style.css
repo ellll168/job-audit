@@ -1,1 +1,22 @@
 @import "tailwindcss";
+
+/* Element Plus 全局错误提示：深色底 + 红色描边，与页面暗黑风一致 */
+.ja-error-message.el-message {
+  background-color: rgba(69, 10, 10, 0.94);
+  border: 1px solid rgba(248, 113, 113, 0.55);
+  box-shadow: 0 0 24px rgba(239, 68, 68, 0.35);
+  backdrop-filter: blur(8px);
+}
+
+.ja-error-message.el-message .el-message__content {
+  color: #fecaca;
+  font-weight: 500;
+}
+
+.ja-error-message.el-message .el-message__closeBtn {
+  color: #fca5a5;
+}
+
+.ja-error-message.el-message .el-message__icon {
+  color: #f87171;
+}

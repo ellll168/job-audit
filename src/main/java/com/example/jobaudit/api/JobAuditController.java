@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.example.jobaudit.domain.AuditRequest;
 import com.example.jobaudit.domain.AuditResultResponse;
 import com.example.jobaudit.domain.AuditSignalRecord;
+import com.example.jobaudit.domain.InterviewQuestionsResponse;
 import com.example.jobaudit.domain.JobAudit;
 import com.example.jobaudit.exception.AuditNotFoundException;
 import com.example.jobaudit.mapper.AuditSignalRecordMapper;
@@ -53,7 +54,7 @@ public class JobAuditController {
     }
 
     @GetMapping("/{id}")
-    public AuditResultResponse getById(@PathVariable Long id) {
+    public AuditResultResponse getById(@PathVariable("id") Long id) {
         log.info("查询审计记录，traceId={}，auditId={}", MDC.get(TraceIdFilter.TRACE_ID), id);
 
         JobAudit jobAudit = jobAuditMapper.selectById(id);
@@ -71,6 +72,17 @@ public class JobAuditController {
                 jobAudit.getInputText(),
                 jobAudit.getStatus(),
                 jobAudit.getCreatedAt(),
-                signals);
+                signals,
+                jobAudit.getAiVerdict());
+    }
+
+    @GetMapping("/{id}/questions")
+    public InterviewQuestionsResponse getInterviewQuestions(@PathVariable("id") Long id) {
+        log.info("生成面试反问话术，traceId={}，auditId={}", MDC.get(TraceIdFilter.TRACE_ID), id);
+
+        InterviewQuestionsResponse response = auditService.generateInterviewQuestions(id);
+
+        log.info("反问话术生成完成，auditId={}，问题数={}", id, response.questions().size());
+        return response;
     }
 }

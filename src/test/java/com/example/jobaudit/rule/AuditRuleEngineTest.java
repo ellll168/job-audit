@@ -4,6 +4,7 @@ import com.example.jobaudit.domain.AuditSignal;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.ActiveProfiles;
 
 import java.util.List;
 
@@ -11,7 +12,11 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-@SpringBootTest
+// 占位 Key：规则引擎不调用模型，但 Spring 上下文需要能解析 ${LLM_API_KEY}
+@SpringBootTest(properties = {
+        "LLM_API_KEY=test-key",
+        "langchain4j.open-ai.chat-model.api-key=test-key"})
+@ActiveProfiles("test")
 class AuditRuleEngineTest {
 
     @Autowired

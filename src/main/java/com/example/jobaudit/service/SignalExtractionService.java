@@ -10,6 +10,7 @@ import dev.langchain4j.model.chat.request.ResponseFormat;
 import dev.langchain4j.model.chat.request.ResponseFormatType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 /**
@@ -84,14 +85,23 @@ public class SignalExtractionService {
     private final ChatModel chatModel;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
+    /** 是否允许真实调用大模型；demo profile 置为 false，直接走降级，避免演示时长时间等待 */
+    private final boolean aiEnabled;
+
     /** 模型未给出 confidence 时的兜底置信度 */
     private static final double DEFAULT_CONFIDENCE = 0.8;
 
-    public SignalExtractionService(ChatModel chatModel) {
+    public SignalExtractionService(ChatModel chatModel,
+                                   @Value("${jobaudit.ai.enabled:true}") boolean aiEnabled) {
         this.chatModel = chatModel;
+        this.aiEnabled = aiEnabled;
     }
 
     public ExtractedSignal extract(String jdText) {
+        if (!aiEnabled) {
+            log.info("AI 外呼已关闭（demo 模式），跳过模型调用，直接转入 pending_review");
+            return ExtractedSignal.pendingReview(null);
+        }
         String raw = null;
         try {
             ChatRequest request = ChatRequest.builder()

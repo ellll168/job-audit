@@ -31,15 +31,18 @@ public class AuditPersistenceService {
 
     /**
      * 主记录入库并回填自增主键，随后批量写入信号。
+     * aiVerdict 在事务外由 LLM 生成完毕后传入，随主记录一起写入。
      * 任一写入失败，job_audit 与 audit_signal 全部回滚。
      */
     @Transactional
-    public JobAudit saveAudit(String companyName, String jdText, List<AuditSignalRecord> signals) {
+    public JobAudit saveAudit(String companyName, String jdText, List<AuditSignalRecord> signals,
+                              String aiVerdict) {
         JobAudit jobAudit = new JobAudit();
         jobAudit.setCompanyName(companyName);
         jobAudit.setInputText(jdText);
         jobAudit.setStatus(STATUS_SCANNED);
         jobAudit.setCreatedAt(LocalDateTime.now());
+        jobAudit.setAiVerdict(aiVerdict);
         jobAuditMapper.insert(jobAudit);
 
         Long auditId = jobAudit.getId();

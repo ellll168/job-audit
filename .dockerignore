@@ -1,0 +1,7 @@
+target/
+frontend/
+.git/
+.idea/
+.vscode/
+*.md
+!README.md

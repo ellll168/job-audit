@@ -24,6 +24,11 @@ public class JobAudit {
 
     private LocalDateTime createdAt;
 
+    private String aiVerdict;
+
+    /** 面试反问话术，换行分隔，懒生成后回写缓存 */
+    private String interviewQuestions;
+
     public Long getId() {
         return id;
     }
@@ -62,5 +67,21 @@ public class JobAudit {
 
     public void setCreatedAt(LocalDateTime createdAt) {
         this.createdAt = createdAt;
+    }
+
+    public String getAiVerdict() {
+        return aiVerdict;
+    }
+
+    public void setAiVerdict(String aiVerdict) {
+        this.aiVerdict = aiVerdict;
+    }
+
+    public String getInterviewQuestions() {
+        return interviewQuestions;
+    }
+
+    public void setInterviewQuestions(String interviewQuestions) {
+        this.interviewQuestions = interviewQuestions;
     }
 }

@@ -5,6 +5,7 @@ import com.example.jobaudit.service.SignalExtractionService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.ActiveProfiles;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -12,7 +13,11 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 /**
  * 容错测试：验证 SignalExtractionService 在模型输出残缺时走 pending_review 降级，不抛异常。
  */
-@SpringBootTest
+// 占位 Key：测试不依赖真实 LLM_API_KEY，无环境变量时也能启动上下文
+@SpringBootTest(properties = {
+        "LLM_API_KEY=test-key",
+        "langchain4j.open-ai.chat-model.api-key=test-key"})
+@ActiveProfiles("test")
 class FaultToleranceTest {
 
     @Autowired

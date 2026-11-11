@@ -20,6 +20,7 @@
     "@tailwindcss/vite": "^4.3.5",
     "axios": "^1.21.0",
     "echarts": "^6.1.0",
-    "html2canvas": "^1.4.1"
+    "element-plus": "^2.14.8",
+    "html2canvas-pro": "^2.5.0"
   }
 }

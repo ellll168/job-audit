@@ -5,6 +5,7 @@ import com.example.jobaudit.mapper.JobAuditMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -17,7 +18,11 @@ import static org.mockito.Mockito.when;
 /**
  * 故障注入测试：验证批量写入信号失败时，主记录 job_audit 的插入被事务回滚。
  */
-@SpringBootTest(properties = "langchain4j.open-ai.chat-model.api-key=test-key")
+// 占位 Key：测试不依赖真实 LLM_API_KEY，无环境变量时也能启动上下文
+@SpringBootTest(properties = {
+        "LLM_API_KEY=test-key",
+        "langchain4j.open-ai.chat-model.api-key=test-key"})
+@ActiveProfiles("test")
 class AuditTransactionTest {
 
     @Autowired

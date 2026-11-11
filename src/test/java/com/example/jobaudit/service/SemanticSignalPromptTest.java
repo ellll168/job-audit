@@ -1,54 +1,86 @@
 package com.example.jobaudit.service;
 
 import com.example.jobaudit.domain.ExtractedSignal;
-import org.junit.jupiter.api.Assumptions;
+import dev.langchain4j.data.message.AiMessage;
+import dev.langchain4j.data.message.SystemMessage;
+import dev.langchain4j.model.chat.ChatModel;
+import dev.langchain4j.model.chat.request.ChatRequest;
+import dev.langchain4j.model.chat.request.ResponseFormatType;
+import dev.langchain4j.model.chat.response.ChatResponse;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
-import java.util.List;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 /**
- * 语义 Prompt 效果演示：把多段真实风格的 JD 依次喂给 LLM，打印识别结果。
- * 默认跳过（避免每次构建都消耗模型额度），手动运行：
- * mvn test -Dtest=SemanticSignalPromptTest -Dllm.demo=true
+ * 语义 Prompt 契约测试：ChatModel 用 Mockito 隔离，不依赖真实 DeepSeek Key 与网络，
+ * 离线执行 mvn test 也能稳定通过。
+ * 覆盖三件事：1) Prompt 结构（角色 / Few-shot / 硬规则边界 / 输出格式）
+ * 2) 合法 JSON 能被解析成信号 3) 坏 JSON 降级 pending_review。
+ * <p>
+ * 需要看真实模型效果时改用：mvn test -Dtest=ChatModelSmokeTest -Dllm.live=true
  */
-@SpringBootTest
+@SpringBootTest(properties = {
+        "LLM_API_KEY=test-key",
+        "langchain4j.open-ai.chat-model.api-key=test-key"})
+@ActiveProfiles("test")
 class SemanticSignalPromptTest {
 
     @Autowired
     SignalExtractionService service;
 
-    /** 样例：1~4 对应四类语义陷阱，5 为正常 JD，6 只含硬规则已覆盖的问题，7~8 为 V2 Few-shot 的原样输入 */
-    private static final List<String> JD_SAMPLES = List.of(
-            "我们是狼性团队，公司就是你的家。创业阶段大家一起拼搏，不加班就是不奋斗，"
-                    + "年轻人要能吃亏，不接受质疑的请绕道。",
-            "我们是行业第一的准独角兽，期权很快上市，未来三年估值翻十倍，"
-                    + "加入即成为合伙人，一起改变世界。",
-            "岗位职责：独立负责产品方案设计、前端页面开发、后端服务架构、数据库运维、"
-                    + "服务器部署、市场投放与客户售后，一人搞定全流程。",
-            "要求精通Java、前端、运维、算法，薪资4-6K。",
-            "招聘 Java 后端工程师，负责电商交易系统订单服务的开发与维护，"
-                    + "要求 3 年以上经验，薪资 20-30K。",
-            "急招 Java 开发，薪资面议，单休，要求能吃苦抗压，完成相关工作。",
-            "我们提供广阔的发展空间、扁平化管理、零食下午茶，薪资面议。"
-    );
+    @MockitoBean
+    ChatModel chatModel;
 
     @Test
-    void runJdSamples() {
-        Assumptions.assumeTrue(Boolean.getBoolean("llm.demo"),
-                "手动演示测试，默认跳过。运行方式：mvn test -Dtest=SemanticSignalPromptTest -Dllm.demo=true");
+    void promptShouldContainFewShotAndHardRuleBoundary() {
+        stubModel("{\"signalType\":\"none\",\"reason\":\"未发现语义陷阱\",\"confidence\":0.0}");
 
-        for (int i = 0; i < JD_SAMPLES.size(); i++) {
-            String jd = JD_SAMPLES.get(i);
-            ExtractedSignal signal = service.extract(jd);
-            System.out.printf("""
-                    --- 样例 %d ---
-                    JD：%s
-                    结果：signalType=%s, confidence=%s, status=%s
-                    理由：%s
+        service.extract("招聘 Java 后端工程师，负责订单服务开发，薪资 20-30K。");
 
-                    """, i + 1, jd, signal.signalType(), signal.confidence(), signal.status(), signal.reason());
-        }
+        ArgumentCaptor<ChatRequest> captor = ArgumentCaptor.forClass(ChatRequest.class);
+        verify(chatModel).chat(captor.capture());
+        ChatRequest request = captor.getValue();
+
+        String systemPrompt = ((SystemMessage) request.messages().get(0)).text();
+        assertTrue(systemPrompt.contains("# Few-shot Examples"), "Prompt 缺少 Few-shot 段");
+        assertTrue(systemPrompt.contains("salary_opacity"), "Prompt 缺少硬规则边界（避免重复提取）");
+        assertTrue(systemPrompt.contains("# Output Format"), "Prompt 缺少输出格式约束");
+        assertEquals(ResponseFormatType.JSON, request.responseFormat().type(), "应启用 json_object 响应模式");
+    }
+
+    @Test
+    void validJsonShouldBeParsedIntoSignal() {
+        stubModel("{\"signalType\":\"broad_duty\",\"reason\":\"JD 要求一人包揽前后端、运维与售后\",\"confidence\":0.88}");
+
+        ExtractedSignal signal = service.extract("独立负责产品、前端、后端、运维、售后全流程。");
+
+        assertEquals("OK", signal.status());
+        assertEquals("broad_duty", signal.signalType());
+        assertEquals(0.88, signal.confidence(), 0.0);
+    }
+
+    @Test
+    void brokenJsonShouldDegradeToPendingReview() {
+        stubModel("这不是 JSON");
+
+        ExtractedSignal signal = service.extract("任意 JD 文本");
+
+        assertEquals("pending_review", signal.status());
+    }
+
+    private void stubModel(String rawText) {
+        when(chatModel.chat(any(ChatRequest.class)))
+                .thenReturn(ChatResponse.builder()
+                        .aiMessage(AiMessage.from(rawText))
+                        .build());
     }
 }
