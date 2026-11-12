@@ -41,8 +41,8 @@ public class JdSignalCache {
             .recordStats()
             .build();
 
-    /** 一次 JD 解析的完整产物：信号列表 + 毒舌锐评，两者一起缓存才能彻底免掉模型调用 */
-    public record CachedAudit(List<AuditSignalRecord> signals, String aiVerdict) {
+    /** 一次 JD 解析的完整产物：信号列表 + 毒舌锐评 + 避坑建议，一起缓存才能彻底免掉模型调用 */
+    public record CachedAudit(List<AuditSignalRecord> signals, String aiVerdict, List<String> avoidanceTips) {
     }
 
     /** 读缓存；未命中返回 empty */
@@ -55,12 +55,12 @@ public class JdSignalCache {
         }
         log.info("JD 解析结果缓存命中，key={}，信号数={}，锐评={}",
                 key, cached.signals().size(), cached.aiVerdict());
-        return Optional.of(new CachedAudit(copyOf(cached.signals()), cached.aiVerdict()));
+        return Optional.of(new CachedAudit(copyOf(cached.signals()), cached.aiVerdict(), cached.avoidanceTips()));
     }
 
     /** 写缓存，写入的是副本，与调用方后续对记录的修改隔离 */
-    public void put(String jdText, List<AuditSignalRecord> signals, String aiVerdict) {
-        cache.put(keyOf(jdText), new CachedAudit(copyOf(signals), aiVerdict));
+    public void put(String jdText, List<AuditSignalRecord> signals, String aiVerdict, List<String> avoidanceTips) {
+        cache.put(keyOf(jdText), new CachedAudit(copyOf(signals), aiVerdict, List.copyOf(avoidanceTips)));
     }
 
     /**

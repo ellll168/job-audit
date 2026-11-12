@@ -34,6 +34,8 @@ interface AuditResult {
   createdAt: string
   signals: SignalRecord[]
   aiVerdict: string | null
+  /** 避坑建议：后端按需生成、不落库；演示或无信号时为空数组 */
+  avoidanceTips: string[]
 }
 
 /* ---------- 响应式状态 ---------- */
@@ -685,6 +687,27 @@ onBeforeUnmount(() => {
           <div ref="gaugeRef" class="h-[220px] w-full" />
         </div>
       </header>
+
+      <!-- 避坑锦囊：紧跟毒舌锐评，暗黑毛玻璃 + 微黄警示边框 -->
+      <section
+        v-if="audit?.avoidanceTips?.length"
+        class="mt-6 bg-slate-900/60 backdrop-blur-md border-2 border-amber-400/60 rounded-2xl
+               shadow-[0_0_30px_rgba(251,191,36,0.20)] p-6"
+      >
+        <h2 class="flex items-center gap-2 text-lg font-bold text-amber-300 mb-4 tracking-wide">
+          🛡️ 你的专属避坑锦囊
+        </h2>
+        <ul class="space-y-3">
+          <li
+            v-for="(tip, i) in audit.avoidanceTips"
+            :key="i"
+            class="flex items-start gap-2.5 text-base font-bold text-amber-100 leading-relaxed"
+          >
+            <span class="select-none">👉</span>
+            <span>{{ tip }}</span>
+          </li>
+        </ul>
+      </section>
 
       <!-- 结果页内错误（如导出等操作异常时不应出现，预留） -->
       <div

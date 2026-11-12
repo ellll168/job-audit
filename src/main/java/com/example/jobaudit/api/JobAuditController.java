@@ -64,7 +64,9 @@ public class JobAuditController {
 
         List<AuditSignalRecord> signals = signalRecordMapper.selectList(
                 new QueryWrapper<AuditSignalRecord>().eq("audit_id", id).orderByAsc("id"));
-        log.info("查询完成，auditId={}，关联信号数={}", id, signals.size());
+        // 避坑建议不落库：命中内存缓存直接复用，未命中按需生成
+        List<String> avoidanceTips = auditService.resolveAvoidanceTips(jobAudit.getInputText(), signals);
+        log.info("查询完成，auditId={}，关联信号数={}，避坑建议数={}", id, signals.size(), avoidanceTips.size());
 
         return new AuditResultResponse(
                 jobAudit.getId(),
@@ -73,7 +75,8 @@ public class JobAuditController {
                 jobAudit.getStatus(),
                 jobAudit.getCreatedAt(),
                 signals,
-                jobAudit.getAiVerdict());
+                jobAudit.getAiVerdict(),
+                avoidanceTips);
     }
 
     @GetMapping("/{id}/questions")

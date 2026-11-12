@@ -75,7 +75,7 @@ flowchart TD
 **四个关键设计点**
 
 1. **规则 + LLM 双引擎**：6 条硬规则（确定、可单测、零依赖）负责 `salary_opacity` / `vague_duty` / `contradictory_req` / `urgency_noise` / `scam_risk` / `overwork_risk`；LLM 只负责规则覆盖不到的 4 类语义风险（`pua_culture` / `overpackaged` / `broad_duty` / `salary_mismatch`）。同一 `signalType` 冲突时规则优先。
-2. **Caffeine 缓存**：JD 文本空白归一化后取 SHA-256 作为 Key，缓存 `signals + aiVerdict`，24 小时内同一段 JD 不再调用模型；读写均返回副本，避免落库回填的 `auditId` 污染缓存。
+2. **Caffeine 缓存**：JD 文本空白归一化后取 SHA-256 作为 Key，缓存 `signals + aiVerdict + avoidanceTips`，24 小时内同一段 JD 不再调用模型；读写均返回副本，避免落库回填的 `auditId` 污染缓存。
 3. **降级兜底**：模型超时或输出非法 JSON → `pending_review`，并额外落一条 `source=SYSTEM` 的 `AI_SERVICE_DOWN` 信号（前端以"系统提示"样式展示、不计入风险分）。降级结果**不写缓存**，AI 恢复后同一 JD 会重新走语义提取。
 4. **事务切分**：规则扫描、LLM 调用、合并去重、锐评生成全部在事务外完成，只有"主表插入 + 信号批量写入"进入 `@Transactional` 短事务，避免数秒级模型调用长时间占用数据库连接。
 
@@ -109,7 +109,7 @@ Flyway 脚本位于 `src/main/resources/db/migration/`，启动时自动执行�
 |---|---|---|
 | GET | `/api/health` | 健康检查，返回 `{"status":"ok","project":"job-audit"}` |
 | POST | `/api/audits` | 提交 JD 审计，body：`{"companyName":"...","inputText":"..."}`（`inputText` 上限 8000 字） |
-| GET | `/api/audits/{id}` | 查询审计记录及关联信号，含 `aiVerdict` |
+| GET | `/api/audits/{id}` | 查询审计记录及关联信号，含 `aiVerdict` 与 `avoidanceTips`（避坑建议不落库，24 小时内同段 JD 复用内存缓存） |
 | GET | `/api/audits/{id}/questions` | 生成面试反问话术（JD + 风险信号作为上下文；结果回写 `interview_questions`，重复请求命中缓存不入模型） |
 
 > 接口描述默认关闭：`/v3/api-docs` 与 `/swagger-ui.html` 均返回 404，`/doc.html` 只剩无数据的静态外壳（Knife4j 前端资源），不包含任何接口结构。本地调试需要文档时：
@@ -128,7 +128,12 @@ Flyway 脚本位于 `src/main/resources/db/migration/`，启动时自动执行�
     {"signalType": "salary_opacity", "severity": "HIGH", "reason": "JD 标注薪资“面议”……", "source": "RULE"},
     {"signalType": "AI_SERVICE_DOWN", "severity": "INFO", "reason": "AI 服务暂时不可用……", "source": "SYSTEM"}
   ],
-  "aiVerdict": "要求全栈大牛却只给 4-6K，还大谈狼性文化，建议快跑"
+  "aiVerdict": "要求全栈大牛却只给 4-6K，还大谈狼性文化，建议快跑",
+  "avoidanceTips": [
+    "面试直接问死底薪数字，别听综合薪资画大饼",
+    "让HR当场写出这个岗位每天固定工作项和业务线",
+    "问清单休是哪天、周末加班有无法定补贴并写进合同"
+  ]
 }
 ```
 

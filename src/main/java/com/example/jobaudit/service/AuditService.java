@@ -22,6 +22,7 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.function.Function;
@@ -55,23 +56,45 @@ public class AuditService {
     private static final double DEFAULT_LLM_CONFIDENCE = 0.8;
 
     /** 毒舌锐评的长度硬上限，超出则截断 */
-    private static final int VERDICT_MAX_LENGTH = 60;
+    private static final int VERDICT_MAX_LENGTH = 30;
 
     /** 反问话术固定生成条数 */
     private static final int QUESTION_COUNT = 3;
 
+    /** 避坑建议最多保留条数 */
+    private static final int TIP_MAX_COUNT = 3;
+
+    /** 单条避坑建议的字数上限 */
+    private static final int TIP_MAX_LENGTH = 30;
+
     private static final SystemMessage VERDICT_SYSTEM_PROMPT = SystemMessage.from("""
             你是一个嘴上不饶人但句句在理的求职风控毒舌评论员。
-            根据用户给出的招聘 JD 和系统检测到的风险信号，用一句话（不超过 50 字）\
-            对这个岗位做锐评，风格略带幽默和毒舌，但必须基于已检测到的风险，不得编造。
-            例如：“要求全栈大牛却只给 4-6K，还大谈狼性文化，建议快跑”。
+            任务：根据招聘 JD 原文与检测到的风险信号，用一句话吐槽这个岗位最大的致命伤，不超过 30 字。
+            要求：
+            1. 语气犀利、幽默、带讽刺，但必须基于已检测到的风险，不得编造；
+            2. 只做“吐槽定性”，绝对不要给建议、不要给问句、不要列举多条；
+            3. 示例：“要求全栈大牛却只给 4-6K，还大谈狼性文化”“薪资面议单休，这哪是招人是找牛马”。
             只输出这一句话本身，不要引号、不要解释、不要换行。""");
 
     private static final SystemMessage QUESTION_SYSTEM_PROMPT = SystemMessage.from("""
-            你是一个资深职场专家，请结合招聘 JD 原文与检测到的风险点，生成 3 个求职者在面试时\
-            向 HR 提出的专业反问问题（要求：直击痛点，不带攻击性，能试探出真实情况；\
-            尽量引用 JD 中的具体细节，如明确的薪资数字、具体技能要求或工作制度表述）。
+            你是一个正在面试现场、准备向 HR 提问的求职者。
+            任务：结合招聘 JD 原文与检测到的风险点，写出 3 个你当场想问 HR 的问题。
+            要求：
+            1. 每一句都必须是疑问句，以“？”结尾，口吻是应聘者直接向 HR 提问，不是第三人称分析；
+            2. 直击痛点、语气礼貌但不退让，尽量引用 JD 细节（薪资数字、技能要求、工作制度）；
+            3. 只输出问题，绝对不要写建议、不要写陈述句、不要写吐槽；
+            4. 示例：“这个岗位的底薪具体是多少？综合薪资的构成能详细说下吗？”
             只输出 3 行，每行一个问题，不要编号、不要解释、不要任何多余文字。""");
+
+    private static final SystemMessage AVOIDANCE_SYSTEM_PROMPT = SystemMessage.from("""
+            你是一位说话极其直接、一针见血的资深职场导师。
+            任务：根据招聘 JD 原文与检测到的风险点，给求职者 2-3 条“心里要防什么”的防御建议。
+            要求：
+            1. 每条不超过 30 字，写成陈述句（判断或提醒），例如“底薪不写清楚，综合月薪就是画大饼”、
+               “单休还没补贴，本质是白嫖你的周末”、“职责写得越模糊，进去后杂活越多”；
+            2. 必须是结论式的提醒，绝对不要写成问句，也不要写成“去问 HR 什么”的提问清单；
+            3. 不要复述吐槽、不要写感慨，每条只讲一个要防的点；
+            4. 只输出 2-3 行，每行一条，不要编号、不要解释、不要任何多余文字。""");
 
     private final AuditPersistenceService auditPersistenceService;
     private final AuditRuleEngine ruleEngine;
@@ -117,33 +140,50 @@ public class AuditService {
 
         List<AuditSignalRecord> merged;
         String aiVerdict;
+        List<String> avoidanceTips;
         if (cached != null) {
             merged = new ArrayList<>(cached.signals());
             aiVerdict = cached.aiVerdict();
+            avoidanceTips = cached.avoidanceTips();
             if (aiVerdict == null) {
                 // 上次锐评生成失败（缓存里为 null）：补生成一次并刷新缓存
                 aiVerdict = generateVerdict(jdText, merged);
-                jdSignalCache.put(jdText, cached.signals(), aiVerdict);
+                jdSignalCache.put(jdText, cached.signals(), aiVerdict, avoidanceTips);
             }
         } else {
             ExtractedSignals extracted = extractSignals(jdText);
             merged = new ArrayList<>(extracted.signals());
             // 锐评只看真实风险信号，不把系统降级提示喂给模型
             aiVerdict = generateVerdict(jdText, merged);
+            avoidanceTips = generateAvoidanceTips(jdText, merged);
             if (extracted.aiDegraded()) {
                 merged.add(aiDownRecord());
             } else {
-                jdSignalCache.put(jdText, extracted.signals(), aiVerdict);
+                jdSignalCache.put(jdText, extracted.signals(), aiVerdict, avoidanceTips);
             }
         }
 
         JobAudit jobAudit = auditPersistenceService.saveAudit(companyName, jdText, merged, aiVerdict);
 
-        log.info("审计完成，auditId={}，合并去重后信号数={}，已批量落库，锐评={}",
-                jobAudit.getId(), merged.size(), aiVerdict);
+        log.info("审计完成，auditId={}，合并去重后信号数={}，已批量落库，锐评={}，避坑建议={} 条",
+                jobAudit.getId(), merged.size(), aiVerdict, avoidanceTips.size());
 
         return new AuditResultResponse(jobAudit.getId(), companyName, jdText,
-                jobAudit.getStatus(), jobAudit.getCreatedAt(), merged, aiVerdict);
+                jobAudit.getStatus(), jobAudit.getCreatedAt(), merged, aiVerdict, avoidanceTips);
+    }
+
+    /**
+     * GET 场景获取避坑建议：同一段 JD 在缓存有效期内直接复用，不再调用模型；
+     * 未命中时按需生成，但不回写缓存——此处信号来自数据库，可能含 SYSTEM 降级提示。
+     */
+    public List<String> resolveAvoidanceTips(String jdText, List<AuditSignalRecord> signals) {
+        List<String> cachedTips = jdSignalCache.get(jdText)
+                .map(JdSignalCache.CachedAudit::avoidanceTips)
+                .orElse(null);
+        if (cachedTips != null) {
+            return cachedTips;
+        }
+        return generateAvoidanceTips(jdText, withoutSystemSignals(signals));
     }
 
     /** 缓存未命中时的提取路径：规则引擎 + LLM，合并去重（此时尚未生成锐评，不写缓存） */
@@ -249,7 +289,54 @@ public class AuditService {
     }
 
     /**
-     * 调用模型生成反问问题并解析：按行拆分，剥离序号前缀，最多取 3 条。
+     * 避坑建议：JD 原文 + 风险信号组装 Prompt，生成 2-3 条面试可执行动作。
+     * 演示模式或调用失败时降级为空列表，不阻断主流程，也不落库。
+     */
+    private List<String> generateAvoidanceTips(String jdText, List<AuditSignalRecord> signals) {
+        if (!aiEnabled) {
+            log.info("AI 外呼已关闭（demo 模式），跳过避坑建议生成");
+            return List.of();
+        }
+        if (signals.isEmpty()) {
+            log.info("无风险信号，跳过避坑建议生成");
+            return List.of();
+        }
+        String riskContext = signals.stream()
+                .map(s -> "- " + s.getSignalType() + "（" + s.getSeverity() + "）：" + s.getReason())
+                .collect(Collectors.joining("\n"));
+        try {
+            String raw = chatModel.chat(ChatRequest.builder()
+                            .messages(AVOIDANCE_SYSTEM_PROMPT, UserMessage.from(
+                                    "【招聘 JD 原文】\n" + jdText + "\n\n【该岗位检测到的风险点】\n" + riskContext))
+                            .build())
+                    .aiMessage().text();
+            return parseTips(raw);
+        } catch (Exception e) {
+            log.warn("AI 避坑建议生成失败，降级为空列表", e);
+            return List.of();
+        }
+    }
+
+    /** 按行解析：剥离序号与引号、去掉句末标点，丢弃跑成问句的行（那属于反问话术），单条超长截断，最多 3 条 */
+    private List<String> parseTips(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return List.of();
+        }
+        return raw.lines()
+                .map(String::trim)
+                .map(line -> line.replaceAll("^[0-9一二三四五六七八九十]+[.、．)]\\s*", ""))
+                .map(line -> line.replaceAll("^[\"'“”「」]+|[\"'“”「」]+$", ""))
+                .map(line -> line.replaceAll("[。；;]+$", ""))
+                .filter(line -> !line.isEmpty())
+                // 与反问话术划清边界：陈述式防御建议，不允许出现疑问句
+                .filter(line -> !line.endsWith("？") && !line.endsWith("?"))
+                .map(line -> line.length() > TIP_MAX_LENGTH ? line.substring(0, TIP_MAX_LENGTH) : line)
+                .limit(TIP_MAX_COUNT)
+                .toList();
+    }
+
+    /**
+     * 调用模型生成反问问题并解析：按行拆分，剥离序号前缀，统一以“？”结尾，最多取 3 条。
      * JD 原文与风险信号一起作为上下文注入，让问题能引用具体细节（如薪资数字）。
      * 模型调用失败时抛出异常，由 GlobalExceptionHandler 统一处理。
      */
@@ -273,8 +360,27 @@ public class AuditService {
                 .map(String::trim)
                 .map(line -> line.replaceAll("^[0-9一二三四五六七八九十]+[.、．)]\\s*", ""))
                 .filter(line -> !line.isEmpty())
+                // 与避坑建议划清边界：只保留疑问句，且一行里的多个问句拆成多条
+                .flatMap(AuditService::splitQuestions)
+                .filter(question -> !question.isEmpty())
                 .limit(QUESTION_COUNT)
                 .toList();
+    }
+
+    /** 拆行：一行里有多个问句时按问号切分，只保留疑问句，句末标点统一为“？” */
+    private static Stream<String> splitQuestions(String line) {
+        if (!line.contains("？") && !line.contains("?")) {
+            // 模型偶尔漏写问号：整行当作一个问题，补上问号
+            return Stream.of(normalizeQuestion(line));
+        }
+        return Arrays.stream(line.split("(?<=[？?])"))
+                .map(String::trim)
+                .filter(sentence -> sentence.endsWith("？") || sentence.endsWith("?"))
+                .map(AuditService::normalizeQuestion);
+    }
+
+    private static String normalizeQuestion(String sentence) {
+        return sentence.replaceAll("[。.；;！!？?\\s]+$", "") + "？";
     }
 
     /** 规则引擎输出 -> audit_signal 实体；auditId 与 createdAt 由持久化层统一回填 */
