@@ -283,8 +283,9 @@ public class AuditService {
         if (cleaned.isEmpty()) {
             return null;
         }
+        // 超长时按上限截断并补省略号，避免把句子砍在半截（如“全能廉价”）
         return cleaned.length() > VERDICT_MAX_LENGTH
-                ? cleaned.substring(0, VERDICT_MAX_LENGTH)
+                ? cleaned.substring(0, VERDICT_MAX_LENGTH - 1) + "…"
                 : cleaned;
     }
 

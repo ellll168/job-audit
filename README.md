@@ -10,6 +10,26 @@
 
 **规则引擎兜底确定性问题，大模型负责规则覆盖不到的语义陷阱；模型不可用时自动降级，绝不把"AI 挂了"伪装成"岗位安全"。**
 
+## 🌟 比赛核心亮点
+
+**1. 规则 + LLM 双引擎，各司其职**
+6 条硬规则负责可枚举、可单测的确定性风险（薪资不透明、职责模糊、要求矛盾、紧迫话术、招转培、超长待机）；LLM 只处理规则写不出来的语义陷阱（PUA 话术、过度包装、职责过宽、薪资与能力错配）。同一 `signalType` 冲突时规则优先——确定性判断始终有兜底，不把解释权完全交给黑盒模型。
+
+**2. 模型降级绝不伪装安全**
+这是本项目在"AI 应用"里最在意的一条设计底线：当大模型超时、限流或输出非法 JSON 时，系统**不会静默返回"无风险"**，而是显式落一条 `source=SYSTEM` 的 `AI_SERVICE_DOWN` 信号，前端以琥珀色"系统提示"卡片明示"本次语义分析未生效"，且该信号不计入风险分。降级结果不写缓存，AI 恢复后同一段 JD 会自动重新分析。
+
+> 宁可承认 AI 挂了，也不让求职者误以为这家公司是安全的。
+
+**3. 三个 AI 输出视角严格分离**
+同一批风险信号喂给模型，分别产出三种不重叠的言语行为：`aiVerdict` 只做**吐槽定性**（≤30 字）、`avoidanceTips` 只给**陈述式防御提醒**、`questions` 只写**第一人称追问**。Prompt 层面显式禁止越界，解析层再用"问句过滤 / 问号归一 / 长度截断"三道硬闸兜底。
+
+**4. 10 分钟零依赖复现**
+H2 一键演示（不装数据库）→ 22 项自动化测试（无 MySQL、无 API Key 全绿）→ GitHub Actions 持续验证 → Docker / 本地 MySQL 两种完整部署方式。
+
+🎬 [点击观看 5 分钟演示视频](此处填入视频链接)
+
+![结果页预览：风险总分仪表盘、毒舌锐评、避坑锦囊、风险维度雷达图与信号明细](docs/images/result-page.png)
+
 ---
 
 ## 技术栈
@@ -34,13 +54,56 @@
 
 ---
 
+## 🤖 Vibe Coding 协同证据链
+
+本项目严格遵循比赛规则，使用 **Trae** 作为 AI 辅助开发工具。AI 承担代码初稿、Prompt 迭代与文档整理；**架构决策、边界校验、代码评审与验收由人工把关**，因此每处 AI 产出都能对应到测试用例或实机验证记录。
+
+**1. 每日 AI 会话快照：`prompts/sessions/`**
+
+共 13 份，按开发顺序归档，记录了每一轮需求、AI 给出的方案、踩过的坑和最终取舍：
+
+| 日期 | 主题 |
+|---|---|
+| 2023-10-29 | 健康检查接口 |
+| 2026-10-30 | Flyway 迁移基线 |
+| 2026-10-31 | 规则引擎 V1（6 条硬规则） |
+| 2026-11-01 | Controller 与规则接入 |
+| 2026-11-02 | 全局异常处理 |
+| 2026-11-03 | 查询接口 |
+| 2026-11-04 | 第一周小结 |
+| 2026-11-05 | LangChain4j 结构化输出 |
+| 2026-11-06 | LLM Prompt V1 |
+| 2026-11-07 | Prompt V2 迭代与规则边界修复 |
+| 2026-11-08 | 信号去重与持久化 |
+| 2026-11-09 | Vue3 暗黑仪表盘 |
+| 2026-11-10 | 最终 AI 特性：锐评 / 锦囊 / 追问三视角拆分 |
+
+**2. 全局约束文件：`.trae-context.md`**
+
+仓库根目录的 `.trae-context.md` 用于约束 AI 的代码生成规范，内容包括技术栈锚点、包结构约定，以及四条硬性禁止项：不使用 Lombok、不用 Hibernate 自动建表（schema 只走 Flyway）、异常统一交给 `@ControllerAdvice`、LLM 解析失败必须降级 `pending_review` 而不是崩溃。每次让 AI 改代码前先读这份文件，保证生成结果始终对齐项目规约。
+
+**3. Prompt 迭代可追溯**
+
+核心 Prompt 的演进过程（语义提取 V1 → V2、三视角 Prompt 拆分）在快照中保留了原始 Prompt 文本、失败案例与修正理由，而不是只留最终版本。例如"锦囊最初被写成提问清单，与追问字段重叠"这个问题，其诊断与修正记录在 `2026-11-10_Final_AI_Features.md`。
+
+**4. 人机分工声明**
+
+| 环节 | 承担方 |
+|---|---|
+| 需求拆解、技术选型、模块边界 | 人工 |
+| 代码初稿、正则与 Prompt 迭代、文档整理 | AI（Trae） |
+| 事务边界、缓存策略、降级语义、安全收敛 | 人工评审后定稿 |
+| 测试补齐、实机验证、CI 配置 | 人工 + AI 协作 |
+
+---
+
 ## 核心架构
 
 ```mermaid
 flowchart TD
     REQ["POST /api/audits<br/>companyName + inputText（≤ 8000 字）"] --> TRACE["TraceIdFilter<br/>生成 traceId 写入 MDC"]
     TRACE --> CACHE{"Caffeine 缓存命中？<br/>Key = SHA-256(JD 原文)"}
-    CACHE -->|命中| HIT["复用缓存的 signals + aiVerdict<br/>零模型调用"]
+    CACHE -->|命中| HIT["复用缓存的 signals + aiVerdict + avoidanceTips<br/>零模型调用"]
     CACHE -->|未命中| RULE
 
     subgraph DUAL["规则 + LLM 双引擎"]
@@ -56,7 +119,7 @@ flowchart TD
 
     MERGE --> VERDICT["生成毒舌锐评<br/>（模型调用，事务外）"]
     VERDICT --> CACHEPUT{"本次是否降级？"}
-    CACHEPUT -->|否| PUT["写缓存<br/>signals + aiVerdict"]
+    CACHEPUT -->|否| PUT["写缓存<br/>signals + aiVerdict + avoidanceTips"]
     CACHEPUT -->|是| NOPUT["不写缓存<br/>AI 恢复后可重新提取"]
     PUT --> SAVE
     NOPUT --> SAVE
@@ -66,7 +129,7 @@ flowchart TD
         SAVE["INSERT job_audit<br/>回填自增主键"] --> BATCH["saveBatch audit_signal<br/>50 条/批"]
     end
 
-    BATCH --> RESP["返回 AuditResultResponse<br/>auditId + signals + aiVerdict"]
+    BATCH --> RESP["返回 AuditResultResponse<br/>auditId + signals + aiVerdict + avoidanceTips"]
     BATCH -.->|"任一步失败"| ROLLBACK["job_audit 与 audit_signal 整体回滚"]
 
     RESP --> FE["前端：仪表盘 + 雷达图 + 信号卡片<br/>URL 写入 ?auditId= 刷新可恢复"]
@@ -143,6 +206,23 @@ Flyway 脚本位于 `src/main/resources/db/migration/`，启动时自动执行�
 
 ## 10 分钟极速复现
 
+### 复现性声明
+
+- **依赖版本锁定**：`pom.xml` 固定所有依赖版本；`frontend/package-lock.json` 提交入库，`npm ci` 可复现；Dockerfile 固定基础镜像 tag。
+- **自动化验证**：GitHub Actions 在干净的 Ubuntu 环境执行 `mvn test` 与 `npm ci && npm run build`，不依赖任何密钥或外部数据库（徽章见顶部，最近三次运行均为 success）。
+- **零外部依赖启动**：H2 演示模式不需要 MySQL；`mvn test` 不需要 MySQL、API Key 与外网。
+- **已知边界**：Docker 方式提供了完整 `Dockerfile` / `docker-compose.yml` 并通过 YAML 校验，但作者开发机未安装 Docker，未做本机端到端实测；H2 演示、本地 MySQL、自动化测试三种方式均已实机验证。
+
+### 环境依赖清单
+
+| 用途 | 是否必需 | 版本要求 | 说明 |
+|---|---|---|---|
+| 运行后端（H2 演示） | 必需 | JDK 17、Maven 3.6.3+ | 不需要数据库 |
+| 运行前端 | 必需 | Node.js `^20.19.0 \|\| >=22.12.0`、npm | Vite 8 引擎要求 |
+| 运行后端（MySQL） | 可选 | MySQL 8+ | 表结构由 Flyway 自动迁移 |
+| 容器化部署 | 可选 | Docker 20.10+ / Compose v2 | 一条命令拉起 MySQL + 后端 |
+| 自动化测试 | 可选 | 同上 JDK + Maven | H2 内存库，无需 MySQL / Key |
+
 ### 模式一：H2 极速体验（推荐，0 数据库配置）
 
 **适用**：只想快速看效果，不想装 MySQL。
@@ -176,6 +256,43 @@ mvn spring-boot:run -Dspring-boot.run.profiles=demo "-Dspring-boot.run.arguments
 curl http://localhost:8080/api/health
 # {"status":"ok","project":"job-audit"}
 ```
+
+### 🔐 环境变量模板（进入 MySQL / Docker 模式前必读）
+
+仓库根目录提供 `.env.example` 模板，**仓库内不包含任何真实密钥**：`.env` 里只有指向 localhost 的前端地址，没有 API Key，也没有数据库密码。`.env` 已被 `.gitignore` 忽略，只有模板 `.env.example` 入库，因此你填入的真实 Key 不会被误提交。
+
+```bash
+cp .env.example .env        # Windows PowerShell: Copy-Item .env.example .env
+```
+
+| 变量 | 作用 | 默认值 | 配置位置 |
+|---|---|---|---|
+| `VITE_API_BASE_URL` | 前端请求后端的基地址 | `http://localhost:8080` | 根目录 `.env`（Vite 读取） |
+| `DB_PASSWORD` | MySQL 密码 | `jobaudit`（仅 compose 内部网络兜底） | 系统环境变量 / IDEA 运行配置 / Docker 读取的 `.env` |
+| `LLM_API_KEY` | DeepSeek API Key | 无 | 同上 |
+
+配置方式二选一：
+
+**A. 系统环境变量（命令行启动）**
+
+```bash
+export DB_PASSWORD=你的数据库密码      # Windows PowerShell: $env:DB_PASSWORD='你的密码'
+export LLM_API_KEY=sk-xxxx            # Windows PowerShell: $env:LLM_API_KEY='sk-xxxx'
+```
+
+**B. IDEA 运行配置（在 IDE 里点启动按钮）**
+
+`Run → Edit Configurations → 选中 JobAuditApplication → Environment variables`，填入：
+
+```
+DB_PASSWORD=你的数据库密码;LLM_API_KEY=sk-xxxx
+```
+
+注意事项：
+
+- 后端**不读取** `.env` 文件（Spring Boot 没有 dotenv 机制），本地 `mvn spring-boot:run` 必须用 A 或 B；只有 Docker Compose 会自动读取根目录 `.env` 里的 `DB_PASSWORD` / `LLM_API_KEY`。
+- 只有 `VITE_` 前缀的变量会注入浏览器端，**任何密钥都不要写进 `VITE_` 变量**，否则会被打进前端产物。
+- 未设置 `LLM_API_KEY` 程序仍可正常启动，AI 能力降级为 `AI_SERVICE_DOWN` 系统提示，规则引擎结果照常输出。
 
 ### 模式二：MySQL 生产模式
 
@@ -281,6 +398,9 @@ job-audit/
 │   └── db/migration/                    Flyway V1 / V2
 ├── src/test/resources/                  H2 测试库 schema 与配置
 ├── frontend/                            Vue3 + Vite + Tailwind + ECharts
+├── prompts/sessions/                    每日 AI 会话快照（Vibe Coding 证据链）
+├── .trae-context.md                     全局 AI 代码生成约束
+├── .env.example                         环境变量模板（无任何真实密钥）
 ├── Dockerfile / docker-compose.yml      一键部署
 └── start-demo.bat / start-demo.sh       一键演示
 ```
