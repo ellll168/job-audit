@@ -1,5 +1,7 @@
 # job-audit 岗位反向尽调助手
 
+> 参赛作品 · 作者：谢嘉聪 · 广州商学院
+
 ![CI](https://github.com/ellll168/job-audit/actions/workflows/ci.yml/badge.svg)
 ![Java](https://img.shields.io/badge/Java-17-blue)
 ![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.5.7-brightgreen)
@@ -21,12 +23,12 @@
 > 宁可承认 AI 挂了，也不让求职者误以为这家公司是安全的。
 
 **3. 三个 AI 输出视角严格分离**
-同一批风险信号喂给模型，分别产出三种不重叠的言语行为：`aiVerdict` 只做**吐槽定性**（≤30 字）、`avoidanceTips` 只给**陈述式防御提醒**、`questions` 只写**第一人称追问**。Prompt 层面显式禁止越界，解析层再用"问句过滤 / 问号归一 / 长度截断"三道硬闸兜底。
+同一批风险信号喂给模型，分别产出三种不重叠的言语行为：`aiVerdict` 只做**吐槽定性**（≤60 字）、`avoidanceTips` 只给**陈述式防御提醒**、`questions` 只写**第一人称追问**。Prompt 层面显式禁止越界，解析层再用"问句过滤 / 问号归一 / 长度截断"三道硬闸兜底。无风险信号时不出锐评，改为一句中性提示 `neutralVerdict`，避免"0 分却毒舌"的自相矛盾。
 
 **4. 10 分钟零依赖复现**
 H2 一键演示（不装数据库）→ 22 项自动化测试（无 MySQL、无 API Key 全绿）→ GitHub Actions 持续验证 → Docker / 本地 MySQL 两种完整部署方式。
 
-🎬 [点击观看 5 分钟演示视频](此处填入视频链接)
+🎬 [点击观看演示视频（B 站）](https://www.bilibili.com/video/BV1rfsB6CEiU)
 
 ![结果页预览：风险总分仪表盘、毒舌锐评、避坑锦囊、风险维度雷达图与信号明细](docs/images/result-page.png)
 
@@ -60,11 +62,11 @@ H2 一键演示（不装数据库）→ 22 项自动化测试（无 MySQL、无 
 
 **1. 每日 AI 会话快照：`prompts/sessions/`**
 
-共 13 份，按开发顺序归档，记录了每一轮需求、AI 给出的方案、踩过的坑和最终取舍：
+共 15 份，按开发顺序归档，记录了每一轮需求、AI 给出的方案、踩过的坑和最终取舍：
 
 | 日期 | 主题 |
 |---|---|
-| 2023-10-29 | 健康检查接口 |
+| 2026-10-29 | 健康检查接口 |
 | 2026-10-30 | Flyway 迁移基线 |
 | 2026-10-31 | 规则引擎 V1（6 条硬规则） |
 | 2026-11-01 | Controller 与规则接入 |
@@ -77,6 +79,8 @@ H2 一键演示（不装数据库）→ 22 项自动化测试（无 MySQL、无 
 | 2026-11-08 | 信号去重与持久化 |
 | 2026-11-09 | Vue3 暗黑仪表盘 |
 | 2026-11-10 | 最终 AI 特性：锐评 / 锦囊 / 追问三视角拆分 |
+| 2026-11-11 | 工程优化：Caffeine 缓存、Knife4j、H2 演示模式 |
+| 2026-11-16 | 仪表盘纯色动态配色与评分权重校准 |
 
 **2. 全局约束文件：`.trae-context.md`**
 
@@ -142,6 +146,27 @@ flowchart TD
 3. **降级兜底**：模型超时或输出非法 JSON → `pending_review`，并额外落一条 `source=SYSTEM` 的 `AI_SERVICE_DOWN` 信号（前端以"系统提示"样式展示、不计入风险分）。降级结果**不写缓存**，AI 恢复后同一 JD 会重新走语义提取。
 4. **事务切分**：规则扫描、LLM 调用、合并去重、锐评生成全部在事务外完成，只有"主表插入 + 信号批量写入"进入 `@Transactional` 短事务，避免数秒级模型调用长时间占用数据库连接。
 
+### 风险评分与配色
+
+| 信号等级 | 权重 |
+|---|---|
+| HIGH | 30 |
+| MEDIUM | 15 |
+| LOW | 5 |
+| SYSTEM（AI 降级提示） | 0，不计分也不参与雷达 |
+
+总分 `min(95, Σ权重)`，刻意封顶 95 而不是 100：差 JD 也要保留"还有更差"的空间，避免所有问题岗位都挤在满分。
+
+仪表盘颜色**只由总分决定**，整圈纯色、不使用渐变，避免"低分却看到红色"的误导：
+
+| 分数 | 颜色 | 含义 |
+|---|---|---|
+| `< 60` | 绿 `#10b981` | 未命中或仅轻微风险 |
+| `60 ~ 79` | 橙 `#f59e0b` | 存在需要核实的硬伤 |
+| `>= 80` | 红 `#ef4444` | 多项高危叠加，建议谨慎 |
+
+示例：`1 HIGH + 2 MEDIUM = 60`（橙）；`2 HIGH + 2 MEDIUM = 90`（红）；`5 HIGH = 150 → 95`（红，封顶）。
+
 ---
 
 ## 数据库表
@@ -172,7 +197,7 @@ Flyway 脚本位于 `src/main/resources/db/migration/`，启动时自动执行�
 |---|---|---|
 | GET | `/api/health` | 健康检查，返回 `{"status":"ok","project":"job-audit"}` |
 | POST | `/api/audits` | 提交 JD 审计，body：`{"companyName":"...","inputText":"..."}`（`inputText` 上限 8000 字） |
-| GET | `/api/audits/{id}` | 查询审计记录及关联信号，含 `aiVerdict` 与 `avoidanceTips`（避坑建议不落库，24 小时内同段 JD 复用内存缓存） |
+| GET | `/api/audits/{id}` | 查询审计记录及关联信号，含 `aiVerdict` / `neutralVerdict` / `avoidanceTips`（避坑建议不落库：POST 时生成并随 JD 进入缓存，命中缓存直接复用，未命中才按需生成） |
 | GET | `/api/audits/{id}/questions` | 生成面试反问话术（JD + 风险信号作为上下文；结果回写 `interview_questions`，重复请求命中缓存不入模型） |
 
 > 接口描述默认关闭：`/v3/api-docs` 与 `/swagger-ui.html` 均返回 404，`/doc.html` 只剩无数据的静态外壳（Knife4j 前端资源），不包含任何接口结构。本地调试需要文档时：
@@ -196,9 +221,12 @@ Flyway 脚本位于 `src/main/resources/db/migration/`，启动时自动执行�
     "面试直接问死底薪数字，别听综合薪资画大饼",
     "让HR当场写出这个岗位每天固定工作项和业务线",
     "问清单休是哪天、周末加班有无法定补贴并写进合同"
-  ]
+  ],
+  "neutralVerdict": null
 }
 ```
+
+> `neutralVerdict` 只在**零风险信号**时返回一句中性提示（此时 `aiVerdict` 为 `null`）；AI 降级时不返回中性提示，页面改为展示"AI 服务暂不可用"。
 
 错误响应统一由 `GlobalExceptionHandler` 输出 `{code, message}`：400 参数校验（附具体字段原因）/ 404 记录或接口不存在 / 405 方法不支持 / 500 兜底（堆栈只进日志）。
 
@@ -229,7 +257,7 @@ Flyway 脚本位于 `src/main/resources/db/migration/`，启动时自动执行�
 **前置**：仅需 JDK 17 + Maven。
 
 ```bash
-start-demo.bat      # Windows：双击即可
+.\start-demo.bat      # Windows：双击即可
 ./start-demo.sh     # Mac / Linux
 ```
 
@@ -399,11 +427,36 @@ job-audit/
 ├── src/test/resources/                  H2 测试库 schema 与配置
 ├── frontend/                            Vue3 + Vite + Tailwind + ECharts
 ├── prompts/sessions/                    每日 AI 会话快照（Vibe Coding 证据链）
+├── docs/                                技术文档与结果页截图
+├── .github/workflows/ci.yml             后端测试 + 前端构建
 ├── .trae-context.md                     全局 AI 代码生成约束
 ├── .env.example                         环境变量模板（无任何真实密钥）
+├── LICENSE                              MIT
 ├── Dockerfile / docker-compose.yml      一键部署
 └── start-demo.bat / start-demo.sh       一键演示
 ```
+
+---
+
+## 已知限制与后续规划
+
+**已知限制**（如实列出，避免过度承诺）
+
+| 限制 | 说明 / 缓解方式 |
+|---|---|
+| 依赖外部大模型 | 需要 DeepSeek API Key；无 Key、断网或余额不足时自动降级，语义风险可能漏检——页面会显式提示"AI 服务暂不可用"，不会伪装成"无风险" |
+| 无账号与鉴权 | 定位为单机、单人使用的求职辅助工具，接口未做登录与权限控制，不适合直接暴露在公网 |
+| Docker 未本机实测 | `Dockerfile` / `docker-compose.yml` 已提供并通过 YAML 校验，但作者开发机未安装 Docker；H2 演示、本地 MySQL、自动化测试三种方式均已实机验证 |
+| 缓存不跨实例 | Caffeine 为进程内缓存（24h TTL / 2000 条上限），多实例部署时不共享；当前为单实例部署 |
+| 规则覆盖有限 | 6 条硬规则 + 4 类语义风险，只能覆盖常见套路；新骗术需持续补充规则与 Prompt |
+| 评分是启发式 | 权重与阈值基于样本调校，用于横向比较与提示，不构成法律或决策依据 |
+
+**后续规划**
+
+- 历史记录页：目前刷新靠 URL 中的 `?auditId=` 恢复，尚不能浏览全部历史审计
+- 多模型路由：主模型失败时切换备用模型，而不是直接降级
+- 规则可配置化：把正则与权重移到配置/数据库，支持运营侧迭代
+- 用户反馈闭环：允许用户标记"误报/漏报"，用于校准权重与 Prompt
 
 ---
 

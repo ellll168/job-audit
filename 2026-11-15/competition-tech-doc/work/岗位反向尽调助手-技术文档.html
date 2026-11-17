@@ -1,0 +1,825 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>岗位反向尽调助手 · 技术文档</title>
+<style>
+  :root{
+    --ink:#0b1220; --navy:#0f2a43; --body:#24303f; --muted:#64748b;
+    --line:#e2e8f0; --amber:#b45309; --amber-bg:#fffbeb; --red:#b91c1c;
+    --green:#15803d; --code:#f6f8fa;
+  }
+  @page{size:A4; margin:0;}
+  *{box-sizing:border-box;}
+  html,body{margin:0; padding:0;}
+  body{
+    font-family:"Microsoft YaHei","PingFang SC","Noto Sans CJK SC",sans-serif;
+    color:var(--body); font-size:9.7pt; line-height:1.74;
+    -webkit-print-color-adjust:exact; print-color-adjust:exact;
+  }
+  .page{
+    position:relative; width:210mm; height:297mm; padding:22mm 19mm 16mm;
+    background:#fff; overflow:hidden; page-break-after:always; break-after:page;
+  }
+  .page:last-child{page-break-after:auto; break-after:auto;}
+  @media screen{
+    body{background:#e8edf4; padding:8mm 0;}
+    .page{margin:0 auto 8mm; box-shadow:0 2px 14px rgba(15,23,42,.14);}
+  }
+  /* 页眉页脚 */
+  .ph{
+    position:absolute; top:10mm; left:19mm; right:19mm;
+    display:flex; justify-content:space-between; align-items:flex-end;
+    font-size:7.1pt; color:#94a3b8; letter-spacing:.03em;
+    border-bottom:.5pt solid #e8edf4; padding-bottom:1.8mm;
+  }
+  .ph b{color:var(--navy); font-weight:700;}
+  .pf{
+    position:absolute; bottom:8mm; left:19mm; right:19mm;
+    display:flex; justify-content:space-between;
+    font-size:7.1pt; color:#94a3b8;
+  }
+  /* 章头 */
+  .chap{
+    display:flex; align-items:flex-end; gap:5mm;
+    border-bottom:1.4pt solid var(--navy); padding-bottom:3mm; margin:0 0 4mm;
+  }
+  .chap .no{
+    font-family:Georgia,"Times New Roman",serif; font-size:40pt; line-height:.82;
+    color:var(--amber); font-weight:700;
+  }
+  .chap .t{font-size:17.5pt; font-weight:800; color:var(--navy); line-height:1.25;}
+  .chap .en{
+    font-size:7pt; color:#94a3b8; letter-spacing:.2em; margin-top:1.6mm;
+    font-family:Consolas,monospace;
+  }
+  .kicker{
+    display:inline-flex; align-items:center; gap:2mm;
+    font-size:7.4pt; color:var(--amber); letter-spacing:.16em; font-weight:700;
+    margin-bottom:2mm;
+  }
+  .kicker::before{content:""; width:5mm; height:2pt; background:var(--amber);}
+  h1.sec{font-size:16.5pt; line-height:1.3; color:var(--navy); margin:0 0 3mm; font-weight:800;}
+  h2.sub{
+    font-size:10.8pt; color:var(--navy); margin:4.2mm 0 1.8mm;
+    padding-left:2.8mm; border-left:2.4pt solid var(--amber); font-weight:700;
+  }
+  h2.sub .n{font-family:Consolas,monospace; color:var(--amber); font-size:9.2pt; margin-right:1.6mm;}
+  p{margin:0 0 2.2mm; text-align:justify; color:var(--body);}
+  strong{color:var(--navy); font-weight:700;}
+  em.hl{font-style:normal; background:linear-gradient(transparent 64%, #fde68a 64%); padding:0 .3mm;}
+  ul,ol{margin:0 0 2.4mm; padding-left:4.6mm;}
+  li{margin:0 0 1mm;}
+  .small{font-size:8.2pt; color:var(--muted); line-height:1.62;}
+  /* 卡片、表格 */
+  .grid2{display:grid; grid-template-columns:1fr 1fr; gap:4mm;}
+  .grid4{display:grid; grid-template-columns:repeat(4,1fr); gap:3mm;}
+  .card{border:.5pt solid var(--line); border-radius:1.5mm; padding:2.4mm 3mm; background:#fff;}
+  .card .t{font-size:8.8pt; font-weight:700; color:var(--navy); margin-bottom:1mm;}
+  .card .d{font-size:7.9pt; color:#475569; line-height:1.55;}
+  .kpi{border:.5pt solid var(--line); border-top:2.4pt solid var(--amber); padding:2.2mm 3mm; background:#fff;}
+  .kpi .n{font-family:Consolas,monospace; font-size:15pt; font-weight:700; color:var(--navy); line-height:1.2;}
+  .kpi .l{font-size:7.4pt; color:var(--muted); margin-top:.8mm; line-height:1.45;}
+  table{width:100%; border-collapse:collapse; margin:1.6mm 0 2.8mm; font-size:8pt; line-height:1.5;}
+  th{background:var(--navy); color:#fff; text-align:left; padding:1.5mm 2mm; font-weight:600; font-size:7.8pt;}
+  td{border-bottom:.5pt solid var(--line); padding:1.35mm 2mm; vertical-align:top;}
+  tr:nth-child(even) td{background:#f8fafc;}
+  td.c{text-align:center;}
+  .mono{font-family:Consolas,"Courier New",monospace; font-size:7.8pt;}
+  /* 提示块 */
+  .note{
+    background:var(--amber-bg); border:.5pt solid #fde68a; border-left:2.4pt solid var(--amber);
+    border-radius:1mm; padding:2.4mm 3.2mm; font-size:8.3pt; color:#78350f; margin:3mm 0;
+  }
+  .note b{color:#92400e;}
+  .judge{
+    border:.5pt solid var(--line); border-left:2.4pt solid var(--navy);
+    background:#f8fafc; padding:2.6mm 3.2mm; margin:3mm 0; font-size:8.4pt; color:#334155;
+  }
+  .judge .t{font-size:7pt; color:var(--navy); font-weight:700; letter-spacing:.14em; margin-bottom:1mm;}
+  pre{
+    background:var(--code); border:.5pt solid var(--line); border-radius:1mm;
+    padding:2.4mm 3mm; margin:1.6mm 0 2.6mm; font-family:Consolas,"Courier New",monospace;
+    font-size:7.4pt; line-height:1.55; color:#1e293b; white-space:pre-wrap; word-break:break-all;
+  }
+  code.inl{
+    background:#f1f5f9; border:.4pt solid #e2e8f0; border-radius:.8mm;
+    padding:.1mm 1mm; font-family:Consolas,monospace; font-size:8.4pt; color:#0f2a43;
+  }
+  /* 图 */
+  figure{
+    margin:2.6mm 0 3.4mm; border:.5pt solid var(--line); border-radius:1.5mm;
+    background:#fbfdff; padding:3mm 3mm 1.6mm;
+  }
+  figure svg{display:block; width:100%; height:auto;}
+  figcaption{font-size:7.4pt; color:#64748b; text-align:center; margin-top:1.8mm; line-height:1.5;}
+  figcaption b{color:var(--navy);}
+  figure.shot{background:#fff; padding:2.8mm 2.8mm 1.6mm;}
+  figure.shot img{display:block; margin:0 auto; max-width:100%; height:auto; border:.5pt solid #dbe3ee; border-radius:1mm;}
+  /* 控制台 */
+  .console{
+    background:#0b1220; color:#cbd5e1; border-radius:1.5mm; padding:3mm 3.4mm;
+    font-family:Consolas,"Courier New",monospace; font-size:6.4pt; line-height:1.85;
+    white-space:pre-wrap; word-break:break-all; border:.5pt solid #1e293b;
+  }
+  .console .tid{color:#fbbf24;}
+  .console .warn{color:#fca5a5;}
+  .console .ok{color:#86efac;}
+  .console .dim{color:#64748b;}
+  /* 封面 */
+  .cover{
+    background:#0b1120; color:#e2e8f0; padding:0;
+  }
+  .cover .bg{
+    position:absolute; inset:0;
+    background-image:
+      radial-gradient(circle at 78% 16%, rgba(56,189,248,.13), transparent 40%),
+      radial-gradient(circle at 14% 84%, rgba(251,191,36,.09), transparent 42%),
+      linear-gradient(rgba(148,163,184,.06) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(148,163,184,.06) 1px, transparent 1px);
+    background-size:auto,auto,8mm 8mm,8mm 8mm;
+  }
+  .cover .scan{
+    position:absolute; left:0; right:0; top:56%; height:1px;
+    background:linear-gradient(90deg,transparent,rgba(56,189,248,.5),transparent);
+    box-shadow:0 0 12px rgba(56,189,248,.35);
+  }
+  .cover .inner{position:relative; padding:34mm 20mm 0;}
+  .cover .tag{
+    display:inline-block; border:.6pt solid rgba(56,189,248,.45); color:#7dd3fc;
+    font-size:7.4pt; letter-spacing:.18em; padding:1.4mm 3mm; border-radius:.8mm;
+  }
+  .cover h1{font-size:32pt; line-height:1.16; margin:9mm 0 4mm; color:#f8fafc; font-weight:800; letter-spacing:-.02em;}
+  .cover .sub{font-size:11pt; color:#94a3b8; line-height:1.85; margin:0;}
+  .cover .sub b{color:#fbbf24; font-weight:700;}
+  .cover .rule{width:24mm; height:2pt; background:#fbbf24; margin:9mm 0 6mm;}
+  .cover .stack{display:flex; flex-wrap:wrap; gap:2.2mm; max-width:152mm;}
+  .cover .chip{
+    font-family:Consolas,monospace; font-size:7.3pt; color:#cbd5e1;
+    border:.5pt solid rgba(148,163,184,.32); padding:1.1mm 2.4mm; border-radius:.9mm;
+  }
+  .cover .meta{
+    position:absolute; left:20mm; right:20mm; bottom:18mm;
+    display:grid; grid-template-columns:repeat(4,1fr); gap:4mm;
+    border-top:.5pt solid rgba(148,163,184,.22); padding-top:3.6mm;
+  }
+  .cover .meta .k{font-size:6.8pt; color:#64748b; letter-spacing:.12em; margin-bottom:1mm;}
+  .cover .meta .v{font-size:8.4pt; color:#e2e8f0;}
+  /* 目录 */
+  .toc{margin-top:2mm;}
+  .toc .row{display:flex; align-items:baseline; gap:2mm; padding:2mm 0; border-bottom:.4pt dotted #cbd5e1;}
+  .toc .num{font-family:Consolas,monospace; font-size:8.4pt; color:var(--amber); width:8mm; flex:none;}
+  .toc .name{font-size:9.8pt; color:var(--navy); font-weight:700;}
+  .toc .dots{flex:1; border-bottom:.4pt dotted #cbd5e1; transform:translateY(-1mm);}
+  .toc .pg{font-family:Consolas,monospace; font-size:8.4pt; color:var(--muted);}
+  .toc .subrow{padding:1.1mm 0 1.1mm 10mm; font-size:8.2pt; color:#64748b;}
+  .pill{display:inline-block; font-size:7.2pt; padding:.3mm 1.5mm; border-radius:.8mm; font-family:Consolas,monospace; line-height:1.5;}
+  .pill.r{background:#e0f2fe; color:#0369a1;}
+  .pill.l{background:#fef3c7; color:#92400e;}
+  .pill.s{background:#f1f5f9; color:#475569;}
+  .pill.h{background:#fee2e2; color:#b91c1c;}
+</style>
+</head>
+<body>
+
+<!-- ================= P1 封面 ================= -->
+<section class="page cover">
+  <div class="bg"></div>
+  <div class="scan"></div>
+  <div class="inner">
+    <div class="tag">2026 · AI 创新应用挑战赛 / 技术文档</div>
+    <h1>岗位反向尽调助手</h1>
+    <p class="sub">基于规则 + LLM 双引擎的招聘 JD 风险审计系统<br>
+      <b>规则兜底确定性，模型只做语义增量</b><br>
+      AI 不可用时，系统明确暴露“语义分析未生效”，而不是静默返回“无风险”。</p>
+    <div class="rule"></div>
+    <div class="stack">
+      <span class="chip">Java 17</span>
+      <span class="chip">Spring Boot 3.5.7</span>
+      <span class="chip">LangChain4j 1.18.1</span>
+      <span class="chip">DeepSeek</span>
+      <span class="chip">MyBatis-Plus</span>
+      <span class="chip">Flyway</span>
+      <span class="chip">Caffeine</span>
+      <span class="chip">Vue 3</span>
+      <span class="chip">MySQL 8 / H2</span>
+    </div>
+  </div>
+  <div class="meta">
+    <div><div class="k">DOCUMENT</div><div class="v">技术文档 v1.0</div></div>
+    <div><div class="k">DATE</div><div class="v">2026-11-15</div></div>
+    <div><div class="k">CODE BASE</div><div class="v">20c9f4e</div></div>
+    <div><div class="k">SCOPE</div><div class="v">架构 · 意图控制 · 鲁棒性</div></div>
+  </div>
+</section>
+
+<!-- ================= P2 摘要 / 目录 ================= -->
+<section class="page">
+  <div class="ph"><span><b>文档摘要</b> / ABSTRACT</span><span>job-audit · 技术文档</span></div>
+  <div class="kicker">阅读之前</div>
+  <h1 class="sec">把不确定性关进可观测的边界</h1>
+  <p>本文讨论一个具体的工程问题：当审计对象是一段由招聘方撰写、可能刻意模糊的 JD 时，系统如何在有限时间内给出可解释的风险判断，并在大模型不可用时仍然保持结论可信。实现上采用规则引擎与 LLM 双引擎：硬规则负责可枚举、可单测的确定性风险，LLM 负责规则写不出来的语义陷阱；同一风险类型冲突时规则优先。全文按架构约束、意图控制、可复现性三个维度展开，所有机制均以仓库当前代码为准。</p>
+
+  <div class="grid4" style="margin-top:4mm;">
+    <div class="kpi"><div class="n">6+1</div><div class="l">条确定性硬规则<br>（6 业务 + 1 信息量兜底）</div></div>
+    <div class="kpi"><div class="n">4</div><div class="l">类 LLM 语义风险<br>单次只输出最严重一条</div></div>
+    <div class="kpi"><div class="n">24h</div><div class="l">Caffeine 缓存 TTL<br>Key = SHA-256(JD)</div></div>
+    <div class="kpi"><div class="n">22</div><div class="l">项自动化测试<br>0 失败，1 项线上冒烟跳过</div></div>
+  </div>
+
+  <div class="grid2" style="margin-top:6mm;">
+    <div>
+      <h2 class="sub" style="margin-top:0;"><span class="n">CONTENTS</span>目录</h2>
+      <div class="toc">
+        <div class="row"><span class="num">01</span><span class="name">架构设计与工程约束</span><span class="dots"></span><span class="pg">03</span></div>
+        <div class="subrow">分层职责 / 双引擎边界 / 短事务 / 缓存 / Flyway / 运行界面</div>
+        <div class="row"><span class="num">02</span><span class="name">AI 协同与意图控制策略</span><span class="dots"></span><span class="pg">09</span></div>
+        <div class="subrow">结构化输出降级 / Few-shot 迭代 / 三视角隔离 / 会话留痕</div>
+        <div class="row"><span class="num">03</span><span class="name">可复现性与鲁棒性论证</span><span class="dots"></span><span class="pg">13</span></div>
+        <div class="subrow">TraceId / 降级截图 / 参数校验 / 提交与验证矩阵</div>
+      </div>
+    </div>
+    <div>
+      <h2 class="sub" style="margin-top:0;"><span class="n">SCOPE</span>口径说明</h2>
+      <div class="note" style="margin-top:0;">
+        <b>以代码为准。</b>文中涉及的行为、常量与边界条件，均对照仓库实现核对；当需求描述与实现不一致时，按实现如实表述，并在正文中标注差异。
+      </div>
+      <div class="small">
+        <p style="margin-bottom:1.6mm;"><strong>数字口径：</strong>22 项测试、14 份会话快照、18 个提交均为仓库当前状态；模型效果数字（如 V2 回归）注明样本量，不包装为统计结论。</p>
+        <p style="margin-bottom:0;"><strong>边界口径：</strong>未做端到端实测的能力（如 Docker 部署）明确标注为已知边界，不作为已验证结论。</p>
+      </div>
+    </div>
+  </div>
+
+  <h2 class="sub"><span class="n">MAP</span>三个问题，三条回答</h2>
+  <table>
+    <tr><th style="width:27%;">评委可能追问</th><th>本文的回答</th><th style="width:17%;">对应章节</th></tr>
+    <tr><td>规则和大模型谁说了算？</td><td>规则优先。模型只提供增量语义信号，冲突时保留规则结论，幻觉无法推翻确定性判断。</td><td class="mono">1.2 / 2.2</td></tr>
+    <tr><td>模型慢，会不会拖垮数据库？</td><td>模型调用、规则计算、合并去重全部在事务外；只有主表插入与信号批量写入进入短事务。</td><td class="mono">1.3</td></tr>
+    <tr><td>AI 挂了，系统会不会假装没事？</td><td>不会。降级写入 <span class="pill s">SYSTEM</span> / <span class="mono">AI_SERVICE_DOWN</span> 信号并透出前端，且降级结果不写缓存。</td><td class="mono">3.2</td></tr>
+  </table>
+  <div class="pf"><span>岗位反向尽调助手 · 技术文档</span><span>P.02</span></div>
+</section>
+
+<!-- ================= P3 第一章 + 1.1 + 图1 ================= -->
+<section class="page">
+  <div class="ph"><span><b>01</b> 架构设计与工程约束</span><span>job-audit · 技术文档</span></div>
+  <div class="chap">
+    <div class="no">01</div>
+    <div>
+      <div class="t">架构设计与工程约束</div>
+      <div class="en">ARCHITECTURE &amp; ENGINEERING CONSTRAINTS</div>
+    </div>
+  </div>
+  <p>这一章回答的是“系统为什么这样切”。判断标准只有一条：当一次审计结果异常时，能否快速定位是参数、缓存、规则、模型还是数据库的问题。围绕这条标准，系统确立四条硬约束：双引擎职责切分、短事务边界、内容哈希缓存、Schema 版本托管。</p>
+
+  <h2 class="sub"><span class="n">1.1</span>分层：每个失败点只有一个责任人</h2>
+  <p>系统按<strong>接入、编排、能力、持久化</strong>四层组织。接入层由 <span class="mono">TraceIdFilter</span>、<span class="mono">JobAuditController</span> 与 <span class="mono">GlobalExceptionHandler</span> 组成，只负责链路标识、参数校验与错误归一；编排层只有 <span class="mono">AuditService</span>，负责缓存判定、引擎调度、结果合并与交付；能力层由规则引擎、语义提取、缓存与三次生成式调用构成，彼此不感知对方内部实现；持久化层只有 <span class="mono">AuditPersistenceService</span>，是整条链路<em class="hl">唯一持有事务边界</em>的地方。</p>
+  <p>这样切分的收益是排障顺序确定：先看参数是否通过 <span class="mono">@Size(max=8000)</span> 校验，再看缓存是否命中，再看规则命中数，再看 LLM 返回状态，最后看落库结果。任何一层出问题，都不会把责任模糊地推给“整个审计服务”。整体分层如图 1 所示。</p>
+
+  <figure>
+    <svg viewBox="0 0 700 420" xmlns="http://www.w3.org/2000/svg" style="font-family:'Microsoft YaHei',sans-serif;">
+      <defs>
+        <marker id="a1" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 Z" fill="#94a3b8"/></marker>
+      </defs>
+      <!-- 接入层 -->
+      <rect x="8" y="8" width="684" height="84" rx="4" fill="#f8fafc" stroke="#e2e8f0"/>
+      <text x="20" y="28" font-size="10" font-weight="700" fill="#b45309">接入层 / API</text>
+      <rect x="88" y="40" width="140" height="40" rx="3" fill="#fff" stroke="#cbd5e1"/>
+      <text x="100" y="57" font-size="11" font-weight="700" fill="#0f2a43">Vue 3 前端</text>
+      <text x="100" y="71" font-size="8.6" fill="#64748b">仪表盘 · 报告导出</text>
+      <rect x="250" y="40" width="132" height="40" rx="3" fill="#fff" stroke="#cbd5e1"/>
+      <text x="262" y="57" font-size="11" font-weight="700" fill="#0f2a43">TraceIdFilter</text>
+      <text x="262" y="71" font-size="8.6" fill="#64748b">UUID → MDC</text>
+      <rect x="404" y="40" width="132" height="40" rx="3" fill="#fff" stroke="#cbd5e1"/>
+      <text x="416" y="57" font-size="10.4" font-weight="700" fill="#0f2a43">Controller</text>
+      <text x="416" y="71" font-size="8.6" fill="#64748b">/api/audits</text>
+      <rect x="558" y="40" width="124" height="40" rx="3" fill="#fff" stroke="#cbd5e1" stroke-dasharray="3 2"/>
+      <text x="568" y="57" font-size="9.2" font-weight="700" fill="#0f2a43">GlobalException</text>
+      <text x="568" y="71" font-size="8.6" fill="#64748b">Handler · 统一错误</text>
+      <line x1="228" y1="60" x2="246" y2="60" stroke="#94a3b8" stroke-width="1.2" marker-end="url(#a1)"/>
+      <line x1="382" y1="60" x2="400" y2="60" stroke="#94a3b8" stroke-width="1.2" marker-end="url(#a1)"/>
+      <line x1="536" y1="60" x2="554" y2="60" stroke="#94a3b8" stroke-width="1" stroke-dasharray="3 2" marker-end="url(#a1)"/>
+      <!-- 编排层 -->
+      <rect x="8" y="104" width="684" height="70" rx="4" fill="#f8fafc" stroke="#e2e8f0"/>
+      <text x="20" y="122" font-size="10" font-weight="700" fill="#b45309">编排层 / Orchestration</text>
+      <rect x="88" y="128" width="594" height="40" rx="3" fill="#0f2a43"/>
+      <text x="102" y="145" font-size="11.5" font-weight="700" fill="#f8fafc">AuditService</text>
+      <text x="102" y="160" font-size="8.8" fill="#cbd5e1">缓存判定 → 规则扫描 → 语义提取 → 合并去重 → 锐评 / 建议 → 交付落库（全程事务外）</text>
+      <line x1="355" y1="92" x2="355" y2="102" stroke="#94a3b8" stroke-width="1.2" marker-end="url(#a1)"/>
+      <!-- 能力层 -->
+      <rect x="8" y="186" width="684" height="136" rx="4" fill="#f8fafc" stroke="#e2e8f0"/>
+      <text x="20" y="204" font-size="10" font-weight="700" fill="#b45309">能力层 / Capabilities</text>
+      <rect x="88" y="212" width="286" height="44" rx="3" fill="#fff" stroke="#cbd5e1"/>
+      <text x="100" y="230" font-size="10.6" font-weight="700" fill="#0f2a43">AuditRuleEngine</text>
+      <text x="100" y="245" font-size="8.5" fill="#64748b">6 条业务规则 + 1 条信息量兜底</text>
+      <rect x="394" y="212" width="288" height="44" rx="3" fill="#fff" stroke="#cbd5e1"/>
+      <text x="406" y="230" font-size="10.6" font-weight="700" fill="#0f2a43">SignalExtractionService</text>
+      <text x="406" y="245" font-size="8.5" fill="#64748b">json_object + Prompt 契约 + 服务端校验</text>
+      <rect x="88" y="264" width="286" height="44" rx="3" fill="#fff" stroke="#cbd5e1"/>
+      <text x="100" y="282" font-size="10.6" font-weight="700" fill="#0f2a43">JdSignalCache</text>
+      <text x="100" y="297" font-size="8.5" fill="#64748b">Caffeine · SHA-256 Key · 24h / 2000</text>
+      <rect x="394" y="264" width="288" height="44" rx="3" fill="#fff" stroke="#cbd5e1"/>
+      <text x="406" y="282" font-size="10.6" font-weight="700" fill="#0f2a43">生成式输出 ×3</text>
+      <text x="406" y="297" font-size="8.5" fill="#64748b">毒舌锐评 / 避坑建议 / 面试反问</text>
+      <line x1="355" y1="174" x2="355" y2="184" stroke="#94a3b8" stroke-width="1.2" marker-end="url(#a1)"/>
+      <!-- 持久化层 -->
+      <rect x="8" y="334" width="684" height="78" rx="4" fill="#f8fafc" stroke="#e2e8f0"/>
+      <text x="20" y="352" font-size="10" font-weight="700" fill="#b45309">持久化层 / Persistence</text>
+      <rect x="88" y="360" width="200" height="38" rx="3" fill="#fff" stroke="#cbd5e1"/>
+      <text x="100" y="377" font-size="10" font-weight="700" fill="#0f2a43">AuditPersistenceService</text>
+      <text x="100" y="391" font-size="8.5" fill="#64748b">@Transactional（唯一事务边界）</text>
+      <rect x="300" y="360" width="170" height="38" rx="3" fill="#fff" stroke="#cbd5e1"/>
+      <text x="312" y="377" font-size="9.6" font-weight="700" fill="#0f2a43">MyBatis-Plus</text>
+      <text x="312" y="391" font-size="8.5" fill="#64748b">BaseMapper · saveBatch(50)</text>
+      <rect x="482" y="360" width="200" height="38" rx="3" fill="#fff" stroke="#cbd5e1"/>
+      <text x="494" y="377" font-size="9.6" font-weight="700" fill="#0f2a43">MySQL 8 / H2</text>
+      <text x="494" y="391" font-size="8.5" fill="#64748b">Flyway V1 · V2（仅 MySQL）</text>
+      <line x1="288" y1="379" x2="296" y2="379" stroke="#94a3b8" stroke-width="1.2" marker-end="url(#a1)"/>
+      <line x1="470" y1="379" x2="478" y2="379" stroke="#94a3b8" stroke-width="1.2" marker-end="url(#a1)"/>
+      <line x1="355" y1="322" x2="355" y2="332" stroke="#94a3b8" stroke-width="1.2" marker-end="url(#a1)"/>
+    </svg>
+    <figcaption><b>图1：系统架构图</b>　四层职责与唯一事务边界；虚线框表示异常旁路，不参与正常调用链。</figcaption>
+  </figure>
+  <div class="pf"><span>岗位反向尽调助手 · 技术文档</span><span>P.03</span></div>
+</section>
+
+<!-- ================= P4 1.2 + 图2 ================= -->
+<section class="page">
+  <div class="ph"><span><b>01</b> 架构设计与工程约束</span><span>job-audit · 技术文档</span></div>
+  <h2 class="sub" style="margin-top:0;"><span class="n">1.2</span>双引擎：规则兜底确定性，模型只做增量</h2>
+  <p>规则引擎承担<strong>六类业务规则与一条信息量兜底</strong>：<span class="mono">salary_opacity</span> 判断“面议”或折算为元后上下限差距超过 2 倍（支持 K、千、万，无单位且数值小于 1000 时按年限/人数排除）；<span class="mono">vague_duty</span> 匹配“完成相关工作”“领导交办的其他工作”等套话变体，并在 JD 存在具体业务线时豁免；<span class="mono">contradictory_req</span> 捕获“资深/专家”与“应届/小白/无经验”并存；<span class="mono">urgency_noise</span>、<span class="mono">scam_risk</span>、<span class="mono">overwork_risk</span> 分别覆盖紧迫话术、招转培危险词与超时加班组合；<span class="mono">information_missing</span> 在剔除 Unicode 标点与空白后有效字符不超过 20 时触发，且不中断其余规则。</p>
+  <p>LLM 只负责四类语义陷阱：<span class="mono">pua_culture</span>（狼性文化、PUA 话术）、<span class="mono">overpackaged</span>（只谈福利期权、不谈业务与薪酬）、<span class="mono">broad_duty</span>（一人包揽全栈且边界不清）、<span class="mono">salary_mismatch</span>（要求极高、薪资极低）。Prompt 明确列出硬规则已覆盖的类别并要求忽略，避免重复提取；同时补充一句边界：“硬规则只判断薪资是否透明，不判断薪资与要求是否匹配”，否则模型会把“4-6K 招全栈”误判为硬规则已处理而放弃输出。</p>
+  <p>两路结果按 <span class="mono">signalType</span> 合并去重：同一类型同时被规则与模型命中时<em class="hl">保留规则</em>；同来源则保留 <span class="mono">confidence</span> 更高者，规则信号没有置信度，比较时按 0 处理。模型不返回 severity，由置信度映射：大于等于 0.8 为 HIGH，大于等于 0.5 为 MEDIUM，其余为 LOW。完整处理流如图 2 所示。</p>
+
+  <div class="judge">
+    <div class="t">ENGINEERING JUDGEMENT</div>
+    规则优先不是对模型的否定，而是把幻觉的影响范围限制在“增量信号”上。模型可以补充规则看不见的语义风险，但不能推翻一条可由正则和数值比较证明的结论；即使模型输出完全错误，用户仍然拿得到确定性结果。
+  </div>
+
+  <figure>
+    <svg viewBox="0 0 700 400" xmlns="http://www.w3.org/2000/svg" style="font-family:'Microsoft YaHei',sans-serif;">
+      <defs>
+        <marker id="a2" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 Z" fill="#94a3b8"/></marker>
+        <marker id="a2r" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 Z" fill="#b91c1c"/></marker>
+        <marker id="a2g" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 Z" fill="#15803d"/></marker>
+      </defs>
+      <!-- 顶部 -->
+      <rect x="16" y="20" width="112" height="42" rx="3" fill="#fff" stroke="#cbd5e1"/>
+      <text x="28" y="38" font-size="10.4" font-weight="700" fill="#0f2a43">JD 原文</text>
+      <text x="28" y="52" font-size="8.4" fill="#64748b">≤ 8000 字</text>
+      <line x1="128" y1="41" x2="148" y2="41" stroke="#94a3b8" stroke-width="1.2" marker-end="url(#a2)"/>
+      <rect x="150" y="20" width="150" height="42" rx="3" fill="#fff" stroke="#cbd5e1"/>
+      <text x="162" y="38" font-size="10" font-weight="700" fill="#0f2a43">归一化</text>
+      <text x="162" y="52" font-size="8.4" fill="#64748b">strip + 连续空白折叠</text>
+      <line x1="300" y1="41" x2="320" y2="41" stroke="#94a3b8" stroke-width="1.2" marker-end="url(#a2)"/>
+      <rect x="322" y="20" width="150" height="42" rx="3" fill="#fff" stroke="#cbd5e1"/>
+      <text x="334" y="38" font-size="10" font-weight="700" fill="#0f2a43">SHA-256</text>
+      <text x="334" y="52" font-size="8.4" fill="#64748b">生成缓存 Key</text>
+      <line x1="472" y1="41" x2="492" y2="41" stroke="#94a3b8" stroke-width="1.2" marker-end="url(#a2)"/>
+      <rect x="494" y="20" width="190" height="42" rx="3" fill="#0f2a43"/>
+      <text x="506" y="38" font-size="10" font-weight="700" fill="#f8fafc">Caffeine.get(Key)</text>
+      <text x="506" y="52" font-size="8.4" fill="#94a3b8">TTL 24h · max 2000</text>
+      <line x1="600" y1="62" x2="600" y2="74" stroke="#15803d" stroke-width="1.2" stroke-dasharray="3 2" marker-end="url(#a2g)"/>
+      <rect x="520" y="76" width="164" height="30" rx="3" fill="#f0fdf4" stroke="#86efac"/>
+      <text x="532" y="95" font-size="8.6" fill="#15803d">命中：零模型调用复用</text>
+      <!-- 未命中 -->
+      <path d="M500 62 L500 108 L350 108 L350 124" fill="none" stroke="#94a3b8" stroke-width="1.2" stroke-dasharray="3 2" marker-end="url(#a2)"/>
+      <text x="508" y="121" font-size="8.4" fill="#94a3b8">未命中</text>
+      <line x1="170" y1="126" x2="530" y2="126" stroke="#cbd5e1" stroke-width="1"/>
+      <line x1="170" y1="126" x2="170" y2="140" stroke="#94a3b8" stroke-width="1.2" marker-end="url(#a2)"/>
+      <line x1="530" y1="126" x2="530" y2="140" stroke="#94a3b8" stroke-width="1.2" marker-end="url(#a2)"/>
+      <!-- 双引擎 -->
+      <rect x="16" y="144" width="318" height="130" rx="4" fill="#fff" stroke="#cbd5e1"/>
+      <rect x="16" y="144" width="318" height="24" rx="4" fill="#e0f2fe"/>
+      <text x="28" y="160" font-size="9.6" font-weight="700" fill="#0369a1">① 规则引擎 · 确定性</text>
+      <text x="30" y="188" font-size="9" fill="#334155">salary_opacity　　vague_duty</text>
+      <text x="30" y="208" font-size="9" fill="#334155">contradictory_req　urgency_noise</text>
+      <text x="30" y="228" font-size="9" fill="#334155">scam_risk　　　　　overwork_risk</text>
+      <text x="30" y="248" font-size="9" fill="#334155">information_missing（兜底）</text>
+      <text x="30" y="266" font-size="8.4" fill="#64748b">输出 source=RULE，无 confidence</text>
+
+      <rect x="366" y="144" width="318" height="130" rx="4" fill="#fff" stroke="#cbd5e1"/>
+      <rect x="366" y="144" width="318" height="24" rx="4" fill="#fef3c7"/>
+      <text x="378" y="160" font-size="9.6" font-weight="700" fill="#92400e">② LLM · 语义</text>
+      <text x="380" y="188" font-size="9" fill="#334155">pua_culture　overpackaged</text>
+      <text x="380" y="208" font-size="9" fill="#334155">broad_duty　　salary_mismatch</text>
+      <text x="380" y="230" font-size="8.6" fill="#64748b">System Prompt 锁定四类 + 输出契约</text>
+      <text x="380" y="248" font-size="8.6" fill="#64748b">json_object 响应模式</text>
+      <text x="380" y="266" font-size="8.6" fill="#b91c1c">非法 / 缺字段 / 超时 → pending_review</text>
+
+      <line x1="150" y1="274" x2="150" y2="292" stroke="#94a3b8" stroke-width="1.2" marker-end="url(#a2)"/>
+      <line x1="520" y1="274" x2="520" y2="292" stroke="#94a3b8" stroke-width="1.2" marker-end="url(#a2)"/>
+      <rect x="100" y="294" width="440" height="44" rx="3" fill="#0f2a43"/>
+      <text x="114" y="311" font-size="10" font-weight="700" fill="#f8fafc">按 signalType 合并去重</text>
+      <text x="114" y="327" font-size="8.6" fill="#cbd5e1">RULE 优先于 LLM；同为 LLM 取 confidence 更高者</text>
+      <line x1="540" y1="316" x2="548" y2="316" stroke="#b91c1c" stroke-width="1.1" stroke-dasharray="3 2" marker-end="url(#a2r)"/>
+      <rect x="550" y="294" width="134" height="44" rx="3" fill="#fff1f2" stroke="#fecdd3"/>
+      <text x="562" y="310" font-size="8.6" font-weight="700" fill="#b91c1c">SYSTEM 信号</text>
+      <text x="562" y="324" font-size="8.2" fill="#b91c1c">AI_SERVICE_DOWN</text>
+      <text x="562" y="336" font-size="7.8" fill="#b91c1c">INFO · 不计分 · 不写缓存</text>
+      <line x1="320" y1="338" x2="320" y2="352" stroke="#94a3b8" stroke-width="1.2" marker-end="url(#a2)"/>
+      <rect x="100" y="354" width="440" height="34" rx="3" fill="#fff" stroke="#cbd5e1"/>
+      <text x="114" y="375" font-size="9.2" fill="#334155">锐评 / 避坑建议（失败静默） → 短事务落库 → 返回</text>
+    </svg>
+    <figcaption><b>图2：双引擎处理流</b>　规则与模型并行产出，按风险类型合并；模型失败只影响语义增量，不阻断主链路。</figcaption>
+  </figure>
+  <div class="pf"><span>岗位反向尽调助手 · 技术文档</span><span>P.04</span></div>
+</section>
+
+<!-- ================= P5 1.3 + 1.4 ================= -->
+<section class="page">
+  <div class="ph"><span><b>01</b> 架构设计与工程约束</span><span>job-audit · 技术文档</span></div>
+  <h2 class="sub" style="margin-top:0;"><span class="n">1.3</span>短事务：把秒级等待移出连接持有期</h2>
+  <p>一次提交最多触发三次模型外呼：语义提取、毒舌锐评、避坑建议（面试反问走独立接口按需生成）。单次语义调用通常在秒级（本项目观测约 1.5 秒；网络异常时还要叠加超时与重试的等待）。如果把整个审计方法标记为 <span class="mono">@Transactional</span>，数据库连接会在模型思考期间被一直持有，并发一上来连接池就会被耗尽，表现为“数据库没压力，但请求全部排队”。</p>
+  <p>实现上把流程拆成两段：<span class="mono">AuditService</span> 只做编排，规则扫描、LLM 调用、合并去重、锐评与建议全部在事务外完成；<span class="mono">AuditPersistenceService.saveAudit</span> 才加 <span class="mono">@Transactional</span>，只包住 <span class="mono">INSERT job_audit</span> 与 <span class="mono">saveBatch audit_signal</span>（每批 50 条）。任一写入失败，主表与子表整体回滚。故障注入测试用 Mock 让批量写入抛出异常，断言 <span class="mono">job_audit</span> 记录数不增加。</p>
+  <div class="judge">
+    <div class="t">TRADE-OFF</div>
+    代价是放弃“全流程一个事务”：模型输出作为中间结果不落库，失败即丢弃，用户重试时重新计算。对审计场景这是可接受的——审计结果要么完整落库，要么不产生脏数据；把长事务换成短事务，是用少量重复计算换取连接池的确定性。
+  </div>
+
+  <h2 class="sub"><span class="n">1.4</span>缓存：用内容哈希消除重复外呼</h2>
+  <p>缓存 Key 不是 JD 原文，而是原文经 <span class="mono">strip()</span> 去首尾空白、把连续空白折叠为单个空格后的 <strong>SHA-256 十六进制摘要</strong>。这样只差换行与缩进的同一段 JD 也能命中，同时避免把长文本直接作为 Map Key。缓存实现为 Caffeine：<span class="mono">expireAfterWrite(24h)</span>、<span class="mono">maximumSize(2000)</span>、开启统计；Value 是一次解析的完整产物——信号列表、毒舌锐评、避坑建议，命中即零模型调用。</p>
+  <p>两个容易忽略的一致性细节：第一，<em class="hl">存取都返回副本</em>，因为持久化层会给记录回填 <span class="mono">auditId</span> 与 <span class="mono">createdAt</span>，若缓存同一批对象，下一次命中会带着上一次的主键；第二，<em class="hl">降级结果不写缓存</em>，AI 恢复后同一段 JD 必须重新走语义提取，否则一次故障会被缓存成 24 小时的“安全结论”。此外，若缓存里的锐评为 <span class="mono">null</span>（上次生成失败），命中后会补生成一次并刷新缓存。</p>
+  <div class="note">
+    <b>已知边界：</b>这是进程内缓存，重启即失效，多实例部署时各实例各自持有、不共享。它解决的是单机重复查询，不宣称具备分布式缓存的一致性；横向扩展时需要替换为 Redis 一类共享存储。
+  </div>
+  <p class="small">查询接口 <span class="mono">GET /api/audits/{id}</span> 的避坑建议同样先读缓存；未命中时按需生成但不回写，因为此时信号来自数据库，可能混入 <span class="mono">SYSTEM</span> 降级提示，写回会污染语义缓存。</p>
+  <div class="pf"><span>岗位反向尽调助手 · 技术文档</span><span>P.05</span></div>
+</section>
+
+<!-- ================= P6 1.5 + 表1 + 小结 ================= -->
+<section class="page">
+  <div class="ph"><span><b>01</b> 架构设计与工程约束</span><span>job-audit · 技术文档</span></div>
+  <h2 class="sub" style="margin-top:0;"><span class="n">1.5</span>Schema：迁移脚本是唯一事实源</h2>
+  <p>数据库结构只由 Flyway 管理。V1 建立 <span class="mono">job_audit</span> 与 <span class="mono">audit_signal</span> 两张表（InnoDB、utf8mb4，子表通过外键关联主表），V2 为 <span class="mono">job_audit</span> 增加 <span class="mono">ai_verdict</span> 与 <span class="mono">interview_questions</span> 两列。应用启动时自动执行迁移，<span class="mono">baseline-on-migrate=true</span> 兼容已有库。ORM 使用 MyBatis-Plus 的 <span class="mono">BaseMapper</span>，只做 CRUD，不参与建表；项目没有引入 Hibernate，也不存在 <span class="mono">ddl-auto</span>。</p>
+  <p>拒绝自动建表的理由很具体：DDL 一旦成为运行时副作用，评审时看不到、回滚时找不到、线上出问题时也无法判断是谁改的。迁移脚本把结构变更变成可 diff、可 review、可顺序执行的代码，V1 与 V2 就是两份可审计的契约。演示模式（H2）不执行 MySQL 专有脚本，改用结构等价的 <span class="mono">schema-h2.sql</span>，避免“演示能跑、生产迁移失败”。</p>
+
+  <h2 class="sub"><span class="n">1.6</span>四条约束的落点与证据</h2>
+  <table>
+    <tr><th style="width:20%;">约束</th><th style="width:44%;">代码落点</th><th>可验证证据</th></tr>
+    <tr><td>双引擎职责切分</td><td class="mono">AuditRuleEngine / SignalExtractionService</td><td>规则单测 14 项；Prompt 契约测试断言 Few-shot、硬规则边界与输出格式</td></tr>
+    <tr><td>请求内短事务</td><td class="mono">AuditPersistenceService#saveAudit</td><td>故障注入测试：批量写入失败后主表记录数不变</td></tr>
+    <tr><td>内容哈希缓存</td><td class="mono">JdSignalCache#keyOf / get / put</td><td>运行日志可观察“未命中 → 重新提取”与命中复用</td></tr>
+    <tr><td>Schema 版本托管</td><td class="mono">db/migration/V1__init.sql、V2__add_ai_verdict.sql</td><td>MySQL 启动自动迁移；H2 demo 使用等价脚本</td></tr>
+    <tr><td>失败语义可见</td><td class="mono">AuditService#aiDownRecord</td><td>残缺 JSON 降级测试；实机返回 <span class="mono">AI_SERVICE_DOWN</span></td></tr>
+  </table>
+
+  <div class="judge">
+    <div class="t">CHAPTER SUMMARY</div>
+    四条约束指向同一个目标：把不确定性关进可观测的边界。规则给出确定性下限，短事务保证数据库不被模型拖住，缓存消除重复外呼，Flyway 保证结构可追溯。它们不是孤立的优化点，而是一组互相支撑的工程前提——任何一条失守，后面的意图控制与降级策略都会失去意义。
+  </div>
+  <p>需要说明的是，这套架构并不追求“全链路无状态”：缓存是进程内的，事务只覆盖落库，模型调用没有重试队列。这些取舍在单机、中小流量、以“结果可解释”为第一目标的比赛场景下成立；如果要做成生产级服务，下一步应当补上共享缓存、异步任务与限流，而不是继续在单机进程内堆功能。</p>
+  <div class="pf"><span>岗位反向尽调助手 · 技术文档</span><span>P.06</span></div>
+</section>
+
+<!-- ================= P7 1.7 运行界面 ================= -->
+<section class="page">
+  <div class="ph"><span><b>01</b> 架构设计与工程约束</span><span>job-audit · 技术文档</span></div>
+  <h2 class="sub" style="margin-top:0;"><span class="n">1.7</span>运行界面：输入与结果</h2>
+  <p>界面不是装饰，而是双引擎结果的外化。输入页只收集审计必需的两项信息：公司名与 JD 原文；提交后，结果页把风险总分、维度分布与逐条信号放在同一屏，用户不需要在多个页面之间拼结论。输入界面如图 3 所示，提交后的结果大屏如图 4 所示。</p>
+
+  <figure class="shot" style="margin-top:2mm;">
+    <img src="assets/01-jd-input.png" style="width:165mm;" alt="JD 粘贴与提交界面">
+    <figcaption><b>图3：JD 粘贴与提交界面</b>　输入公司名与 JD 原文，提交后进入审计。</figcaption>
+  </figure>
+
+  <figure class="shot">
+    <img src="assets/02-dashboard.png" style="width:165mm;" alt="审计结果大屏">
+    <figcaption><b>图4：审计结果大屏</b>　风险总分、风险维度雷达图与信号清单同屏展示。</figcaption>
+  </figure>
+  <div class="pf"><span>岗位反向尽调助手 · 技术文档</span><span>P.07</span></div>
+</section>
+
+<!-- ================= P8 1.8 双引擎产出 ================= -->
+<section class="page">
+  <div class="ph"><span><b>01</b> 架构设计与工程约束</span><span>job-audit · 技术文档</span></div>
+  <h2 class="sub" style="margin-top:0;"><span class="n">1.8</span>双引擎产出：从信号到可执行动作</h2>
+  <p>风险信号最终以统一卡片呈现，但 <span class="mono">source</span> 字段没有被隐藏：来自规则与来自模型的信号在同一列表中可区分，<span class="mono">SYSTEM</span> 只用于降级提示。页面同时给出避坑建议与面试反问，把“识别风险”推进到“现场怎么问”。风险明细与 AI 追问如图 5 所示。</p>
+
+  <figure class="shot" style="margin-top:2mm;">
+    <img src="assets/03-risk-detail.png" style="width:172mm;" alt="风险明细与 AI 追问">
+    <figcaption><b>图5：风险明细与 AI 追问</b>　风险卡片、避坑建议与面试反问同屏展示。</figcaption>
+  </figure>
+
+  <table>
+    <tr><th style="width:20%;">产出</th><th style="width:42%;">页面呈现</th><th>来源 / 约束</th></tr>
+    <tr><td>风险信号</td><td>类型、等级、判定依据、来源</td><td><span class="pill r">RULE</span> / <span class="pill l">LLM</span>；<span class="pill s">SYSTEM</span> 仅作降级提示</td></tr>
+    <tr><td>毒舌锐评</td><td>一句话定性，不超过 60 字</td><td>LLM；生成失败为 <span class="mono">null</span>，页面隐藏该区块</td></tr>
+    <tr><td>避坑建议</td><td>2-3 条陈述式提醒，每条不超过 30 字</td><td>LLM；失败返回空列表，不阻断主流程</td></tr>
+    <tr><td>面试反问</td><td>3 条第一人称问题，以“？”结尾</td><td>LLM；按需生成并回写 <span class="mono">interview_questions</span></td></tr>
+  </table>
+  <p class="small">这四类产出不是四次独立的“炫技”，而是同一条审计链路的四种表达：信号回答“哪里有问题”，锐评回答“最致命的是什么”，建议回答“要防什么”，反问回答“现场怎么问”。</p>
+  <div class="pf"><span>岗位反向尽调助手 · 技术文档</span><span>P.08</span></div>
+</section>
+
+<!-- ================= P7 第二章 + 2.1 ================= -->
+<section class="page">
+  <div class="ph"><span><b>02</b> AI 协同与意图控制策略</span><span>job-audit · 技术文档</span></div>
+  <div class="chap">
+    <div class="no">02</div>
+    <div>
+      <div class="t">AI 协同与意图控制策略</div>
+      <div class="en">INTENT CONTROL &amp; PROMPT ENGINEERING</div>
+    </div>
+  </div>
+  <p>这一章讨论的不是“如何调用大模型”，而是<strong>如何让一个概率性组件在工程上可验收</strong>。手段分三层：协议层尽量强约束，Prompt 层把业务边界写死，服务端再做最后一道拦截。三层都失效时，系统宁可承认失败，也不输出一条看似正常的错误结论。</p>
+
+  <h2 class="sub"><span class="n">2.1</span>结构化输出：从协议强约束到“契约 + 校验”</h2>
+  <p>最初版本按严格模式实现：用 LangChain4j 的 <span class="mono">ResponseFormat</span> 挂载 <span class="mono">JsonObjectSchema</span>（三个字段、必填、禁止额外属性），并开启 <span class="mono">strictJsonSchema(true)</span>。实测 <span class="mono">deepseek-chat</span> 端点返回 <span class="mono">This response_format type is unavailable now</span>，说明该模型不支持 OpenAI 的 <span class="mono">json_schema</span> 模式。继续坚持协议层强约束，只会让每次请求都失败。</p>
+  <p>于是降级为 <span class="mono">json_object</span> 响应模式，把字段约束下移到两处：Prompt 的 <span class="mono"># Output Format</span> 段明确“只输出一个 JSON 对象、三个字段不可缺失/改名/新增、不要 Markdown”，以及服务端的 <span class="mono">parseOrDegrade</span>。后者做三件事：反序列化后<strong>显式检查</strong> <span class="mono">signalType</span> 与 <span class="mono">reason</span> 非空（Jackson 对缺失字段默认不报错，这是踩过的坑）；<span class="mono">confidence</span> 缺失时用 0.8 兜底而不是丢弃整条信号；任何解析异常转为 <span class="mono">pending_review</span>，原始响应进 WARN 日志，但不记录用户 JD 原文与模型请求体。</p>
+  <pre>ResponseFormat.builder()
+        .type(ResponseFormatType.JSON)   // json_object：模型端不支持 json_schema
+        .build();</pre>
+  <table>
+    <tr><th style="width:18%;">层次</th><th style="width:47%;">手段</th><th>失效时的表现</th></tr>
+    <tr><td>协议层</td><td class="mono">json_schema + strict（已降级）</td><td>端点直接报错，无法使用</td></tr>
+    <tr><td>Prompt 层</td><td>Output Format 锁定字段与枚举，禁止 Markdown</td><td>可能输出多余文字或改字段名</td></tr>
+    <tr><td>服务端</td><td class="mono">parseOrDegrade 显式校验 + 默认值 + 降级</td><td>拦截坏数据，转人工复核，不抛 500</td></tr>
+  </table>
+  <div class="judge">
+    <div class="t">ENGINEERING JUDGEMENT</div>
+    模型端的“强约束”不可用时，不能把约束一起放弃。把约束从协议层下移到 Prompt 契约加服务端校验，接受模型“概率性遵守”，但保证“违规必被拦截”。这不是退让，而是把确定性从模型侧收回到自己手里。
+  </div>
+  <div class="pf"><span>岗位反向尽调助手 · 技术文档</span><span>P.09</span></div>
+</section>
+
+<!-- ================= P8 2.2 + 图3 ================= -->
+<section class="page">
+  <div class="ph"><span><b>02</b> AI 协同与意图控制策略</span><span>job-audit · 技术文档</span></div>
+  <h2 class="sub" style="margin-top:0;"><span class="n">2.2</span>Few-shot 迭代：修正的是“归类逃逸”，不是格式</h2>
+  <p>V1 的失败不是 JSON 不合法，而是<strong>合法但漏报</strong>。用真实 JD 压测时发现，“要求精通 Java、前端、运维、算法，薪资 4-6K”这类样本没有被识别为语义风险：模型把它归入硬规则已经覆盖的 <span class="mono">salary_opacity</span>，于是输出 <span class="mono">none</span>。这不是模型“不会判断”，而是它在边界模糊时选择了保守的归类逃逸。业务侧最初的原型是“3 年经验全栈 4-6K”，落到 Prompt 时写成可判定的表述：“要求精通 Java、前端、运维、算法，薪资 4-6K”。</p>
+  <p>V2 做了三件事，顺序很重要：<strong>先扩分类</strong>，把语义风险从 3 类扩到 4 类，新增 <span class="mono">salary_mismatch</span>，明确“要求极高、薪资极低”；<strong>再给样例</strong>，注入两组 Few-shot——<span class="mono">overpackaged</span>（只谈发展空间、零食下午茶、薪资面议）与 <span class="mono">salary_mismatch</span>（精通 Java/前端/运维/算法，4-6K），并追加“不要输出示例内容”防止照抄；<strong>最后补边界</strong>，在 Constraints 中写明“硬规则只判断薪资是否透明，不判断薪资与要求是否匹配；要求极高但薪资极低，仍应提取 <span class="mono">salary_mismatch</span>”。最后这句话才是修复漏报的关键，它解决的是分类职责，而不是输出格式。完整的迭代对照如图 6 所示。</p>
+  <p>回归用 7 组样例：Few-shot 原样输入稳定输出 <span class="mono">salary_mismatch</span>（0.92）与 <span class="mono">overpackaged</span>（0.85）；对照组“面议 + 单休 + 抗压（仅硬规则覆盖）”仍为 <span class="mono">none</span>，证明新增分类没有破坏硬规则豁免。需要严谨说明：迭代记录中的“召回率 0%→95% 以上”是项目内口径，样本只有 7 组，属于工程回归，不构成统计评测。</p>
+  <p>同期规则侧也做了配套迭代：<span class="mono">vague_duty</span> 正则改为结构式匹配，覆盖“公司安排的其他相关工作”等变体；薪资解析补充“万”单位并统一折算为元；<span class="mono">information_missing</span> 改为剔除 Unicode 标点与空白后计数，阈值定为小于等于 20，并去掉提前 <span class="mono">return</span>，让兜底信号与其它规则并排输出。这些改动说明：漏报往往不是模型单方面的问题，而是规则与 Prompt 的边界没有对齐。</p>
+
+  <figure>
+    <svg viewBox="0 0 700 330" xmlns="http://www.w3.org/2000/svg" style="font-family:'Microsoft YaHei',sans-serif;">
+      <defs>
+        <marker id="a3" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 Z" fill="#94a3b8"/></marker>
+      </defs>
+      <rect x="14" y="24" width="196" height="172" rx="4" fill="#fff" stroke="#cbd5e1"/>
+      <rect x="14" y="24" width="196" height="26" rx="4" fill="#f1f5f9"/>
+      <text x="26" y="41" font-size="9.6" font-weight="700" fill="#0f2a43">V1 · 3 类语义</text>
+      <text x="26" y="70" font-size="8.8" fill="#334155">· 无 Few-shot 示例</text>
+      <text x="26" y="92" font-size="8.8" fill="#334155">· 未定义 salary_mismatch</text>
+      <text x="26" y="114" font-size="8.8" fill="#334155">· 输出格式基本正确</text>
+      <text x="26" y="136" font-size="8.8" fill="#b91c1c">· 高要求 + 低薪资被归入</text>
+      <text x="32" y="152" font-size="8.8" fill="#b91c1c">　硬规则，最终输出 none</text>
+      <text x="26" y="178" font-size="8.2" fill="#64748b">7 组样例中该组漏报</text>
+
+      <line x1="212" y1="110" x2="236" y2="110" stroke="#94a3b8" stroke-width="1.2" marker-end="url(#a3)"/>
+
+      <rect x="240" y="24" width="180" height="172" rx="4" fill="#fff" stroke="#cbd5e1"/>
+      <rect x="240" y="24" width="180" height="26" rx="4" fill="#fef3c7"/>
+      <text x="252" y="41" font-size="9.6" font-weight="700" fill="#92400e">诊断</text>
+      <text x="252" y="70" font-size="8.8" fill="#334155">· 不是格式问题</text>
+      <text x="252" y="92" font-size="8.8" fill="#334155">· 是归类逃逸</text>
+      <text x="252" y="114" font-size="8.8" fill="#334155">· 抽象禁令无效</text>
+      <text x="252" y="136" font-size="8.8" fill="#334155">· 边界必须写进 Prompt</text>
+      <text x="252" y="158" font-size="8.8" fill="#334155">· 分类与示例要配套</text>
+
+      <line x1="422" y1="110" x2="446" y2="110" stroke="#94a3b8" stroke-width="1.2" marker-end="url(#a3)"/>
+
+      <rect x="450" y="24" width="236" height="172" rx="4" fill="#fff" stroke="#86efac"/>
+      <rect x="450" y="24" width="236" height="26" rx="4" fill="#f0fdf4"/>
+      <text x="462" y="41" font-size="9.6" font-weight="700" fill="#15803d">V2 · 4 类 + 2 组 Few-shot</text>
+      <text x="462" y="70" font-size="8.8" fill="#334155">· 新增 salary_mismatch</text>
+      <text x="462" y="92" font-size="8.8" fill="#334155">· overpackaged 示例（0.85）</text>
+      <text x="462" y="114" font-size="8.8" fill="#334155">· salary_mismatch 示例（0.9）</text>
+      <text x="462" y="136" font-size="8.8" fill="#334155">· 补充硬规则 / 语义边界句</text>
+      <text x="462" y="158" font-size="8.8" fill="#334155">· Output Format 字段封闭</text>
+      <text x="462" y="180" font-size="8.2" fill="#15803d">→ 原漏报样本稳定命中 0.92</text>
+
+      <rect x="14" y="214" width="672" height="94" rx="4" fill="#f8fafc" stroke="#e2e8f0"/>
+      <text x="26" y="235" font-size="9.2" font-weight="700" fill="#0f2a43">V2 回归结果（7 组样例，非统计评测）</text>
+      <text x="26" y="257" font-size="8.4" fill="#334155">#1 pua_culture 0.95　　#2 overpackaged 0.90　　#3 broad_duty 0.95</text>
+      <text x="26" y="277" font-size="8.4" fill="#334155">#4 salary_mismatch 0.92　　#5 none 0.0　　#6 none（仅硬规则覆盖）　　#7 overpackaged 0.85</text>
+      <text x="26" y="296" font-size="7.8" fill="#64748b">注：迭代记录中的“0% → 95% 以上”为项目内口径，样本仅 7 组，不能外推为模型准确率。</text>
+    </svg>
+    <figcaption><b>图6：Prompt 迭代记录</b>　V1 的漏报来自分类职责不清；V2 用“扩分类 + 给样例 + 写边界”三步修正。</figcaption>
+  </figure>
+  <div class="pf"><span>岗位反向尽调助手 · 技术文档</span><span>P.10</span></div>
+</section>
+
+<!-- ================= P9 2.3 ================= -->
+<section class="page">
+  <div class="ph"><span><b>02</b> AI 协同与意图控制策略</span><span>job-audit · 技术文档</span></div>
+  <h2 class="sub" style="margin-top:0;"><span class="n">2.3</span>视角隔离：用言语行为定义字段</h2>
+  <p>系统对外的三个 AI 字段不是一次调用的三个属性，而是<strong>三次独立调用、三套 System Prompt</strong>。原因很直接：同一批风险信号，如果让模型“顺便”给建议，输出会自然滑向“你要去问 HR……”的混合体，前端无法分栏，用户也分不清“事实判断、行动建议、现场话术”的区别。</p>
+  <p><span class="mono">aiVerdict</span> 的说话人是“嘴上不饶人但句句在理的毒舌评论员”，只做吐槽定性，不超过 60 字（代码常量 <span class="mono">VERDICT_MAX_LENGTH</span>，与早期 30 字口径相比已放宽），禁止给建议、禁止问句、禁止列举；解析层去掉引号与换行，超长截断并补省略号，空结果降级为 <span class="mono">null</span>。<span class="mono">avoidanceTips</span> 的说话人是“说话直接的资深职场导师”，写陈述式提醒，每条不超过 30 字、最多 3 条；解析层剥掉序号与引号、去掉句末标点，并<em class="hl">过滤以问号结尾的行</em>，防止跑成反问。<span class="mono">questions</span> 的说话人是“正在面试现场、准备向 HR 提问的求职者”，必须是第一人称疑问句、以问号结尾、尽量引用 JD 细节；解析层按问号切分一行多问、补全问号、最多取 3 条，生成后以换行拼接写入 <span class="mono">job_audit.interview_questions</span>，重复请求直接读库。</p>
+  <table>
+    <tr><th style="width:17%;">字段</th><th style="width:17%;">说话人</th><th style="width:20%;">句法约束</th><th>解析层硬闸</th><th style="width:15%;">失败策略</th></tr>
+    <tr><td class="mono">aiVerdict</td><td>毒舌评论员</td><td>吐槽陈述句，≤60 字</td><td>去引号换行；超长截断补“…”；空则 null</td><td>静默降级</td></tr>
+    <tr><td class="mono">avoidanceTips</td><td>职场导师</td><td>陈述式提醒，≤30 字，2-3 条</td><td>剥序号引号；丢弃问句行；最多 3 条</td><td>返回空列表</td></tr>
+    <tr><td class="mono">questions</td><td>求职者本人</td><td>第一人称疑问句，以“？”结尾</td><td>按问号切分；补问号；最多 3 条</td><td>抛出，交全局处理</td></tr>
+  </table>
+  <p>隔离的有效性来自三个<strong>可检验维度</strong>：说话人（谁在说）、人称（我 / 你 / 第三人称）、句末形态（陈述 / 祈使 / 疑问）。这比在 Prompt 里写“不要写建议”这类抽象禁令可靠得多，因为抽象禁令无法被解析层验证，而言语行为可以。解析层的过滤是第二道闸：即使模型越界，也不会污染其他栏位。</p>
+  <div class="judge">
+    <div class="t">FAILURE PRIORITY</div>
+    主结果必须可用，增值内容可以缺失。锐评与避坑建议生成失败时静默降级（null / 空列表），不阻断审计主流程；只有反问接口在模型调用失败时抛出异常，由 <span class="mono">GlobalExceptionHandler</span> 统一返回。这个优先级是按“用户最少需要什么”定的，而不是按“哪个功能更酷”定的。
+  </div>
+  <p class="small">另有一条与意图控制相关的边界：Prompt 与模型请求/响应日志默认关闭（<span class="mono">log-requests=false</span>、<span class="mono">log-responses=false</span>），因为 JD 原文属于用户输入，不应落进日志。可观测性不能以泄露用户内容为代价。</p>
+  <div class="pf"><span>岗位反向尽调助手 · 技术文档</span><span>P.11</span></div>
+</section>
+
+<!-- ================= P12 2.4 AI 会话演进 ================= -->
+<section class="page">
+  <div class="ph"><span><b>02</b> AI 协同与意图控制策略</span><span>job-audit · 技术文档</span></div>
+  <h2 class="sub" style="margin-top:0;"><span class="n">2.4</span>迭代留痕：会话快照不是最终版备份</h2>
+  <p>Prompt 的演进没有只保留最后一版。<span class="mono">prompts/sessions/</span> 下按日期保存了每一轮会话记录，内容包括需求原文、当时的方案、踩到的坑与最终取舍；<span class="mono">prompts/prompt-iterations.md</span> 另行汇总 V1 到 V2 的差异。这样做不是为了“留档好看”，而是为了让任何一次行为变化都能追溯到具体指令与失败样例。会话目录如图 7 所示。</p>
+
+  <figure class="shot" style="margin-top:2mm;">
+    <img src="assets/07-ai-sessions.png" style="width:165mm;" alt="AI 会话演进记录">
+    <figcaption><b>图7：AI 会话演进记录</b>　按日期归档的需求、方案与修正过程。</figcaption>
+  </figure>
+
+  <div class="grid2" style="margin-top:2mm;">
+    <div class="card"><div class="t">需求原文保留</div><div class="d">每一轮改了什么都从原始需求出发，避免事后用结论倒推过程。</div></div>
+    <div class="card"><div class="t">失败样例保留</div><div class="d">漏报的 JD、坏 JSON、错误分类都留在记录里，作为下一次回归的输入。</div></div>
+    <div class="card"><div class="t">取舍理由保留</div><div class="d">为什么降级为 json_object、为什么扩大正则，记录的是判断而非口号。</div></div>
+    <div class="card"><div class="t">约束文件独立</div><div class="d"><span class="mono">.trae-context.md</span> 约束 AI 生成行为，与会话记录分离，避免规则被对话淹没。</div></div>
+  </div>
+  <div class="pf"><span>岗位反向尽调助手 · 技术文档</span><span>P.12</span></div>
+</section>
+
+<!-- ================= P13 第三章 + 3.1 + 图11/12 ================= -->
+<section class="page">
+  <div class="ph"><span><b>03</b> 可复现性与鲁棒性论证</span><span>job-audit · 技术文档</span></div>
+  <div class="chap">
+    <div class="no">03</div>
+    <div>
+      <div class="t">可复现性与鲁棒性论证</div>
+      <div class="en">TRACEABILITY, FAILURE DRILL &amp; REPRODUCIBILITY</div>
+    </div>
+  </div>
+  <p>这一章不描述“系统应该很稳定”，而是给出三类可核对的事实：同一请求的日志能否被一条 TraceId 串起来；外部模型故障时系统到底返回什么；另一个人拿到仓库后能否按记录复现。所有结论都限定在已验证的范围内。</p>
+
+  <h2 class="sub"><span class="n">3.1</span>全链路追踪：TraceId 的生命周期必须在过滤器里</h2>
+  <p>实现是一个 <span class="mono">OncePerRequestFilter</span>：请求进入时生成 UUID 写入 MDC，<span class="mono">try/finally</span> 包裹整条过滤链，在 <span class="mono">finally</span> 中调用 <span class="mono">MDC.clear()</span>；日志格式通过 <span class="mono">logging.pattern.level=%5p [%X{traceId}]</span> 输出。早期版本把清理放在 Controller 的 <span class="mono">finally</span> 里，正常路径看不出问题，但异常从 Controller 抛出后、<span class="mono">@RestControllerAdvice</span> 开始处理时，MDC 已经被清空——<em class="hl">恰好是最需要 TraceId 的那条 ERROR 日志丢了上下文</em>。重构为过滤器后，Controller、Service、异常处理器都处在同一个 MDC 生命周期内，线程池复用也不会串号（<span class="mono">finally</span> 保证清理）。</p>
+  <p>边界需要说清楚：这是单机、进程内的日志关联，不跨服务、不注入响应头，也不等同于分布式追踪。跨实例排障仍需要 OpenTelemetry 或统一日志平台，本文不宣称具备该能力。实际日志如图 8、图 9 所示。</p>
+
+  <figure class="shot" style="margin-top:2mm;">
+    <img src="assets/05-1-trace.png" style="width:172mm;" alt="IDE 控制台中的 TraceId 日志">
+    <figcaption><b>图8：全链路追踪日志（IDE 控制台）</b>　同一次请求的多条日志共享同一 traceId。</figcaption>
+  </figure>
+
+  <figure style="margin-top:2mm;">
+    <div class="console"><span class="dim">16:05:13.112</span>  INFO  [<span class="tid">4de59c75…77ab7a</span>]  JobAuditController       收到岗位审计请求，traceId=<span class="tid">4de59c75…77ab7a</span>
+<span class="dim">16:05:13.112</span>  INFO  [<span class="tid">4de59c75…77ab7a</span>]  JdSignalCache            JD 解析结果缓存未命中，key=70ca8257…d47083
+<span class="dim">16:05:13.112</span>  INFO  [<span class="tid">4de59c75…77ab7a</span>]  SignalExtractionService  AI 外呼已关闭（demo / 未配置 Key）→ pending_review
+<span class="dim">16:05:13.112</span>  INFO  [<span class="tid">4de59c75…77ab7a</span>]  AuditService             LLM 未产生语义信号，status=pending_review
+<span class="dim">16:05:13.113</span>  INFO  [<span class="tid">4de59c75…77ab7a</span>]  AuditService             JD 信号提取完成，规则=4，LLM=0，合并后=4，AI降级=true
+<span class="dim">16:05:13.118</span>  INFO  [<span class="tid">4de59c75…77ab7a</span>]  AuditService             审计完成，auditId=2，信号数=5，锐评=null，建议=0 条
+<span class="dim">16:05:13.118</span>  INFO  [<span class="tid">4de59c75…77ab7a</span>]  JobAuditController       审计处理完成，auditId=2，返回信号数=5</div>
+    <figcaption><b>图9：同一请求的日志字段节选</b>　为可读性重新排版，内容与图 8 对应。</figcaption>
+  </figure>
+  <p class="small">同一次运行的相邻两次请求分别生成 <span class="mono">d2731968…</span> 与 <span class="mono">4de59c75…</span>，线程池复用但没有串号；这也反向验证了 <span class="mono">finally</span> 清理的必要性。</p>
+
+  <div class="grid2" style="margin-top:1mm;">
+    <div class="card" style="border-left:2.4pt solid #b91c1c;">
+      <div class="t" style="color:#b91c1c;">重构前 · Controller 内清理</div>
+      <div class="d">Controller 的 finally 先执行 <span class="mono">MDC.clear()</span>，异常继续抛给 <span class="mono">@RestControllerAdvice</span>；异常日志打印时 traceId 已为空，故障现场失去关联键。</div>
+    </div>
+    <div class="card" style="border-left:2.4pt solid #15803d;">
+      <div class="t" style="color:#15803d;">重构后 · Filter 内清理</div>
+      <div class="d"><span class="mono">OncePerRequestFilter</span> 的 finally 包住整条链，Controller、Service 与异常处理器共享同一 MDC；请求结束统一清理，线程复用不串号。</div>
+    </div>
+  </div>
+  <div class="pf"><span>岗位反向尽调助手 · 技术文档</span><span>P.13</span></div>
+</section>
+
+<!-- ================= P14 3.2 + 图8 ================= -->
+<section class="page">
+  <div class="ph"><span><b>03</b> 可复现性与鲁棒性论证</span><span>job-audit · 技术文档</span></div>
+  <h2 class="sub" style="margin-top:0;"><span class="n">3.2</span>故障演练：AI 欠费断网时，规则结果必须照常返回</h2>
+  <p>演练方式有两种：把 <span class="mono">LLM_API_KEY</span> 换成欠费或无效 Key，或者直接断网，触发 DeepSeek 返回 402、超时或连接失败；另一种是 <span class="mono">demo</span> profile 下 <span class="mono">jobaudit.ai.enabled=false</span>，不产生任何外呼，直接走同一条降级路径。预期链路是：<span class="mono">SignalExtractionService.extract</span> 捕获所有调用异常，返回 <span class="mono">status=pending_review</span> 的结果；<span class="mono">AuditService</span> 识别该状态后，追加一条 <span class="mono">source=SYSTEM</span>、<span class="mono">signalType=AI_SERVICE_DOWN</span>、<span class="mono">severity=INFO</span> 的记录；规则信号照常合并、落库并返回 200；本次结果<em class="hl">不写缓存</em>；前端按系统提示渲染“AI 服务降级”，而不是把“零信号”显示成“岗位安全”。降级路径如图 10 所示。</p>
+  <p>这里需要澄清一个容易写错的细节：<strong>AI 欠费断网并不会走到 <span class="mono">GlobalExceptionHandler</span></strong>。它在外呼边界就被捕获并转成业务状态，这是有意的——降级是“部分能力不可用但主结果可用”，不应该被当成 500 请求失败。真正进入 <span class="mono">GlobalExceptionHandler</span> 的是未被兜底的异常（例如反问接口的模型调用失败），它返回统一的 <span class="mono">ErrorResponse</span> 与“服务器开小差了，请稍后再试”，堆栈只进日志，前端 <span class="mono">ElMessage</span> 提示“审计失败，请确认后端服务已启动后重试”。两条路径必须分开设计，否则会把可降级的故障升级成不可用。</p>
+  <p>实机返回可以直接核对：规则命中 <span class="mono">salary_opacity(HIGH)</span>、<span class="mono">vague_duty(MEDIUM)</span>、<span class="mono">urgency_noise(LOW)</span>、<span class="mono">overwork_risk(MEDIUM)</span> 四条，外加一条 <span class="mono">AI_SERVICE_DOWN(INFO, SYSTEM)</span>，HTTP 状态为 200，<span class="mono">aiVerdict=null</span>。这组结果同时证明三件事：规则不依赖模型、降级可见、降级不计入风险分。</p>
+
+  <figure style="margin-top:2mm;">
+    <svg viewBox="0 0 700 400" xmlns="http://www.w3.org/2000/svg" style="font-family:'Microsoft YaHei',sans-serif;">
+      <defs>
+        <marker id="a4" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 Z" fill="#64748b"/></marker>
+        <marker id="a4r" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 Z" fill="#b91c1c"/></marker>
+      </defs>
+      <!-- 参与者 -->
+      <rect x="5" y="10" width="100" height="34" rx="3" fill="#fff" stroke="#cbd5e1"/>
+      <text x="55" y="31" font-size="9.2" text-anchor="middle" fill="#0f2a43" font-weight="700">Browser</text>
+      <rect x="110" y="10" width="100" height="34" rx="3" fill="#fff" stroke="#cbd5e1"/>
+      <text x="160" y="31" font-size="9.2" text-anchor="middle" fill="#0f2a43" font-weight="700">Controller</text>
+      <rect x="215" y="10" width="110" height="34" rx="3" fill="#0f2a43"/>
+      <text x="270" y="31" font-size="9.2" text-anchor="middle" fill="#f8fafc" font-weight="700">AuditService</text>
+      <rect x="330" y="10" width="110" height="34" rx="3" fill="#fff" stroke="#cbd5e1"/>
+      <text x="385" y="31" font-size="9.2" text-anchor="middle" fill="#0f2a43" font-weight="700">RuleEngine</text>
+      <rect x="445" y="10" width="110" height="34" rx="3" fill="#fff" stroke="#cbd5e1"/>
+      <text x="500" y="31" font-size="8.8" text-anchor="middle" fill="#0f2a43" font-weight="700">SignalExtraction</text>
+      <rect x="570" y="10" width="110" height="34" rx="3" fill="#fff" stroke="#cbd5e1"/>
+      <text x="625" y="31" font-size="9.2" text-anchor="middle" fill="#0f2a43" font-weight="700">DeepSeek</text>
+      <!-- 生命线 -->
+      <line x1="55" y1="44" x2="55" y2="344" stroke="#cbd5e1" stroke-dasharray="4 3"/>
+      <line x1="160" y1="44" x2="160" y2="344" stroke="#cbd5e1" stroke-dasharray="4 3"/>
+      <line x1="270" y1="44" x2="270" y2="344" stroke="#cbd5e1" stroke-dasharray="4 3"/>
+      <line x1="385" y1="44" x2="385" y2="344" stroke="#cbd5e1" stroke-dasharray="4 3"/>
+      <line x1="500" y1="44" x2="500" y2="344" stroke="#cbd5e1" stroke-dasharray="4 3"/>
+      <line x1="625" y1="44" x2="625" y2="344" stroke="#cbd5e1" stroke-dasharray="4 3"/>
+      <!-- 消息 -->
+      <line x1="55" y1="76" x2="157" y2="76" stroke="#64748b" stroke-width="1.1" marker-end="url(#a4)"/>
+      <text x="106" y="69" font-size="8.2" text-anchor="middle" fill="#334155">POST /api/audits</text>
+      <line x1="160" y1="102" x2="267" y2="102" stroke="#64748b" stroke-width="1.1" marker-end="url(#a4)"/>
+      <text x="214" y="95" font-size="8.2" text-anchor="middle" fill="#334155">processAndSaveAudit</text>
+      <line x1="270" y1="128" x2="382" y2="128" stroke="#64748b" stroke-width="1.1" marker-end="url(#a4)"/>
+      <text x="326" y="121" font-size="8.2" text-anchor="middle" fill="#334155">analyze(jdText)</text>
+      <line x1="382" y1="152" x2="273" y2="152" stroke="#64748b" stroke-width="1" stroke-dasharray="3 2" marker-end="url(#a4)"/>
+      <text x="328" y="146" font-size="8.2" text-anchor="middle" fill="#64748b">规则信号（同步）</text>
+      <line x1="270" y1="178" x2="497" y2="178" stroke="#64748b" stroke-width="1.1" marker-end="url(#a4)"/>
+      <text x="384" y="171" font-size="8.2" text-anchor="middle" fill="#334155">extract(jdText)</text>
+      <line x1="500" y1="204" x2="622" y2="204" stroke="#64748b" stroke-width="1.1" marker-end="url(#a4)"/>
+      <text x="561" y="197" font-size="8.2" text-anchor="middle" fill="#334155">chat(json_object)</text>
+      <line x1="622" y1="232" x2="503" y2="232" stroke="#b91c1c" stroke-width="1.1" stroke-dasharray="4 2" marker-end="url(#a4r)"/>
+      <text x="562" y="225" font-size="8.2" text-anchor="middle" fill="#b91c1c">402 欠费 / 连接超时</text>
+      <line x1="497" y1="258" x2="273" y2="258" stroke="#b91c1c" stroke-width="1.1" stroke-dasharray="4 2" marker-end="url(#a4r)"/>
+      <text x="385" y="251" font-size="8.2" text-anchor="middle" fill="#b91c1c">pending_review</text>
+      <!-- 自调用 -->
+      <path d="M270 278 L320 278 L320 296 L273 296" fill="none" stroke="#64748b" stroke-width="1.1" marker-end="url(#a4)"/>
+      <text x="328" y="290" font-size="8.2" fill="#334155">合并规则信号 + 追加 SYSTEM / AI_SERVICE_DOWN（INFO）</text>
+      <line x1="267" y1="320" x2="58" y2="320" stroke="#15803d" stroke-width="1.2" marker-end="url(#a4)"/>
+      <text x="162" y="313" font-size="8.2" text-anchor="middle" fill="#15803d">200：4 条规则信号 + 1 条系统提示（不写缓存）</text>
+      <!-- 底部说明 -->
+      <rect x="5" y="356" width="690" height="34" rx="3" fill="#f8fafc" stroke="#e2e8f0"/>
+      <text x="16" y="377" font-size="8.4" fill="#475569">短事务只覆盖 job_audit / audit_signal 写入；模型失败在外呼边界被捕获，不进入 GlobalExceptionHandler。</text>
+    </svg>
+    <figcaption><b>图10：AI 服务降级路径</b>　402 与超时走同一条降级链路；规则结果、落库与 HTTP 200 均不受影响。</figcaption>
+  </figure>
+  <p class="small">对应测试：<span class="mono">FaultToleranceTest</span>（残缺 JSON 与缺失 confidence）、<span class="mono">SemanticSignalPromptTest</span>（坏 JSON 降级、合法 JSON 解析、Prompt 结构）、<span class="mono">AuditTransactionTest</span>（批量写入失败回滚）。三者均可在无 API Key、无 MySQL、无外网的机器上执行。</p>
+  <div class="pf"><span>岗位反向尽调助手 · 技术文档</span><span>P.14</span></div>
+</section>
+
+<!-- ================= P15 3.2 续 降级截图 ================= -->
+<section class="page">
+  <div class="ph"><span><b>03</b> 可复现性与鲁棒性论证</span><span>job-audit · 技术文档</span></div>
+  <h2 class="sub" style="margin-top:0;"><span class="n">3.2</span>故障现场：降级结果与信号明细</h2>
+  <p>关闭模型外呼后重新提交同一段 JD，请求仍然返回 200：结果页展示规则命中的风险信号，信号明细中出现 <span class="mono">source=SYSTEM</span> 的 <span class="mono">AI_SERVICE_DOWN</span>，锐评与建议区块为空。结果页如图 11 所示，信号明细如图 12 所示。</p>
+
+  <figure class="shot" style="margin-top:2mm;">
+    <img src="assets/04-1-degrade.png" style="width:160mm;" alt="AI 宕机降级验证结果页">
+    <figcaption><b>图11：AI 宕机降级验证（结果页）</b>　关闭模型外呼后，结果页仍展示规则命中的风险信号。</figcaption>
+  </figure>
+
+  <figure class="shot">
+    <img src="assets/04-2-degrade.png" style="width:172mm;" alt="AI 宕机降级验证信号明细">
+    <figcaption><b>图12：AI 宕机降级验证（信号明细）</b>　明细中包含 <span class="mono">source=SYSTEM</span> 的 <span class="mono">AI_SERVICE_DOWN</span>（INFO）。</figcaption>
+  </figure>
+  <p class="small">图 11 与图 12 是同一次降级演练的前后两屏；页面没有把“语义分析未生效”隐藏成“无风险”。</p>
+  <div class="pf"><span>岗位反向尽调助手 · 技术文档</span><span>P.15</span></div>
+</section>
+
+<!-- ================= P16 参数校验 + Git ================= -->
+<section class="page">
+  <div class="ph"><span><b>03</b> 可复现性与鲁棒性论证</span><span>job-audit · 技术文档</span></div>
+  <h2 class="sub" style="margin-top:0;"><span class="n">3.2</span>参数校验：400 响应同样走统一出口</h2>
+  <p>参数校验失败不触达规则引擎与模型：JD 为空或超过 8000 字时，Controller 的 <span class="mono">@Valid</span> 校验在进入 Service 前返回 400，响应体保留字段级错误信息，前端直接展示；该路径不产生审计记录。实机响应如图 13 所示。</p>
+
+  <figure class="shot" style="margin-top:1.6mm;">
+    <img src="assets/05-2-validation.png" style="width:110mm;" alt="参数校验拦截 400 响应">
+    <figcaption><b>图13：参数校验拦截（400 响应）</b>　校验失败时返回字段级错误信息，不进入审计流程。</figcaption>
+  </figure>
+
+  <h2 class="sub"><span class="n">3.3</span>复现路径：细粒度提交与 Prompt 会话快照</h2>
+  <p>仓库当前共 <strong>18 个提交</strong>，按 <span class="mono">feat / fix / perf / docs / chore</span> 拆分，每个提交对应一个可独立回放的决策点：<span class="mono">569ae66</span> 引入 Flyway、<span class="mono">2d10bd3</span> 规则引擎 V1、<span class="mono">c237ab9</span> 全局异常处理、<span class="mono">5f1ef58</span> TraceId 重构为 Filter、<span class="mono">5ba6a35</span> 结构化输出与降级、<span class="mono">2836fb9</span> 把 LLM 移出事务、<span class="mono">20c9f4e</span> 缓存与 H2 demo。提交记录如图 14 所示。</p>
+
+  <figure class="shot">
+    <img src="assets/06-git.png" style="width:135mm;" alt="Git 提交记录">
+    <figcaption><b>图14：Git 提交记录</b>　按 feat / fix / perf / docs / chore 拆分的提交历史。</figcaption>
+  </figure>
+  <div class="pf"><span>岗位反向尽调助手 · 技术文档</span><span>P.16</span></div>
+</section>
+
+<!-- ================= P17 3.3 续 + 结尾 ================= -->
+<section class="page">
+  <div class="ph"><span><b>03</b> 可复现性与鲁棒性论证</span><span>job-audit · 技术文档</span></div>
+  <h2 class="sub" style="margin-top:0;"><span class="n">3.3</span>复现路径（续）：会话快照与验证矩阵</h2>
+  <p>Prompt 迭代没有只保留最终版本。<span class="mono">prompts/sessions/</span> 下共有 <strong>14 份</strong>按日期归档的会话快照，记录了每轮需求原文、方案、踩坑与取舍；<span class="mono">prompts/prompt-iterations.md</span> 汇总了 V1 到 V2 的差异，<span class="mono">.trae-context.md</span> 约束 AI 生成行为（不使用 Lombok、禁止 Hibernate 自动建表、异常统一交给 <span class="mono">@ControllerAdvice</span>、LLM 解析失败必须降级为 <span class="mono">pending_review</span>）。这些文件让“AI 参与了开发”变成可核查的过程，而不是一句声明；会话目录如图 7 所示。</p>
+
+  <table>
+    <tr><th style="width:26%;">验证方式</th><th style="width:34%;">前置条件</th><th>结果 / 说明</th></tr>
+    <tr><td>全量单元测试</td><td>JDK 17 + Maven；H2；无需 Key / MySQL / 外网</td><td>22 项，0 失败，1 项线上冒烟默认跳过</td></tr>
+    <tr><td>H2 一键演示</td><td><span class="mono">start-demo.bat / .sh</span></td><td>不装数据库即可启动；AI 关闭时一次审计约 0.4 秒</td></tr>
+    <tr><td>MySQL 完整模式</td><td>MySQL 8+，注入 <span class="mono">DB_PASSWORD</span></td><td>Flyway 自动执行 V1 / V2，真实模型可用</td></tr>
+    <tr><td>持续集成</td><td>GitHub Actions 干净环境</td><td><span class="mono">mvn test</span> + <span class="mono">npm ci &amp;&amp; npm run build</span></td></tr>
+    <tr><td>Docker 部署</td><td>Docker 20.10+ / Compose v2</td><td>文件齐备且通过 YAML 校验；作者开发机未安装 Docker，未做端到端实测</td></tr>
+  </table>
+
+  <h2 class="sub"><span class="n">3.4</span>已知边界与后续工作</h2>
+  <p>为了不让“鲁棒性”变成空话，以下边界需要明确记录：进程内缓存不跨实例；语义提取每次只输出<em class="hl">最严重的一条</em>，不做多标签召回；<span class="mono">BUSINESS_KEYWORDS</span> 是启发式词表，覆盖不全时会误报 <span class="mono">vague_duty</span> 或 <span class="mono">urgency_noise</span>；<span class="mono">salary_mismatch</span> 缺少外部薪资基准，仍依赖模型判断；Docker 部署未在作者机器上做端到端验证。这些问题不会让主链路不可用，但会影响召回率与横向扩展能力。</p>
+  <p>后续优先级应当是：先把语义信号从单条扩展为多标签并引入可配置的薪资基准，再把进程内缓存替换为共享缓存，最后补齐异步任务、限流与分布式追踪。顺序不能反——在结果语义还不稳定之前，谈横向扩展没有意义。</p>
+
+  <div class="judge">
+    <div class="t">CLOSING</div>
+    本项目的工程价值不在于“用了大模型”，而在于把大模型放在一个可以被验证、被降级、被替换的位置：规则负责底线，Prompt 负责意图，服务端负责拦截，日志负责追溯，提交与快照负责复现。任何一环失效，系统都会以明确的方式暴露，而不是给用户一个看起来正常的错误答案。
+  </div>
+  <div class="pf"><span>岗位反向尽调助手 · 技术文档</span><span>P.17</span></div>
+</section>
+
+</body>
+</html>

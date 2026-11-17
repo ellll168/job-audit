@@ -55,11 +55,14 @@ public class AuditService {
     /** 模型未给 confidence 时的兜底值 */
     private static final double DEFAULT_LLM_CONFIDENCE = 0.8;
 
-    /** 毒舌锐评的长度硬上限，超出则截断 */
-    private static final int VERDICT_MAX_LENGTH = 30;
+    /** 毒舌锐评的长度硬上限，超出则截断（放宽到 60 字，避免一句话被砍在半句） */
+    private static final int VERDICT_MAX_LENGTH = 60;
 
     /** 反问话术固定生成条数 */
     private static final int QUESTION_COUNT = 3;
+
+    /** 未配置 LLM_API_KEY 时使用的占位 Key，与 application.properties 中的默认值保持一致 */
+    private static final String PLACEHOLDER_API_KEY = "demo-mode-no-key";
 
     /** 避坑建议最多保留条数 */
     private static final int TIP_MAX_COUNT = 3;
@@ -67,9 +70,28 @@ public class AuditService {
     /** 单条避坑建议的字数上限 */
     private static final int TIP_MAX_LENGTH = 30;
 
+    /**
+     * 零信号时的通用反向背调问题：没命中风险模式 ≠ 绝对安全，
+     * 仍给求职者一套可以直接拿去问 HR 的基础核实清单。
+     */
+    private static final List<String> GENERIC_QUESTIONS = List.of(
+            "这个岗位是新增编制还是接替离职人员？上一任离开的原因是什么？",
+            "团队目前有多少人、我的汇报对象是谁？这个岗位每天固定要做的工作有哪些？",
+            "五险一金的缴纳基数和比例是多少？试用期薪资按转正后的百分之多少发放？");
+
+    /** 零信号时的通用核实建议，避免"未检测到风险"被读成"这家公司没问题" */
+    private static final List<String> GENERIC_TIPS = List.of(
+            "零信号只代表没命中已知套路，签约前仍要核实薪资构成与社保基数",
+            "面试时问清团队规模、汇报线和上一任离职原因，避免入岗即救火",
+            "把口头承诺的待遇写进 offer，试用期比例和转正条件都要白纸黑字");
+
+    /** 零信号时的中性提示：不是吐槽，而是提醒"没命中套路 ≠ 绝对安全" */
+    private static final String NEUTRAL_VERDICT =
+            "没抓到明显套路，但这不代表安全——投递前先把薪资构成、社保基数和团队情况核实一遍。";
+
     private static final SystemMessage VERDICT_SYSTEM_PROMPT = SystemMessage.from("""
             你是一个嘴上不饶人但句句在理的求职风控毒舌评论员。
-            任务：根据招聘 JD 原文与检测到的风险信号，用一句话吐槽这个岗位最大的致命伤，不超过 30 字。
+            任务：根据招聘 JD 原文与检测到的风险信号，用一句话吐槽这个岗位最大的致命伤，不超过 60 字。
             要求：
             1. 语气犀利、幽默、带讽刺，但必须基于已检测到的风险，不得编造；
             2. 只做“吐槽定性”，绝对不要给建议、不要给问句、不要列举多条；
@@ -114,7 +136,8 @@ public class AuditService {
                         ChatModel chatModel,
                         JobAuditMapper jobAuditMapper,
                         AuditSignalRecordMapper signalRecordMapper,
-                        @Value("${jobaudit.ai.enabled:true}") boolean aiEnabled) {
+                        @Value("${jobaudit.ai.enabled:true}") boolean aiEnabled,
+                        @Value("${langchain4j.open-ai.chat-model.api-key:}") String apiKey) {
         this.auditPersistenceService = auditPersistenceService;
         this.ruleEngine = ruleEngine;
         this.signalExtractionService = signalExtractionService;
@@ -122,7 +145,8 @@ public class AuditService {
         this.chatModel = chatModel;
         this.jobAuditMapper = jobAuditMapper;
         this.signalRecordMapper = signalRecordMapper;
-        this.aiEnabled = aiEnabled;
+        // 没有真实 Key 时自动关闭外呼：既保证服务能启动，也避免每次请求都等一次 401 重试
+        this.aiEnabled = aiEnabled && !apiKey.isBlank() && !PLACEHOLDER_API_KEY.equals(apiKey);
     }
 
     /**
@@ -153,12 +177,16 @@ public class AuditService {
         } else {
             ExtractedSignals extracted = extractSignals(jdText);
             merged = new ArrayList<>(extracted.signals());
-            // 锐评只看真实风险信号，不把系统降级提示喂给模型
-            aiVerdict = generateVerdict(jdText, merged);
-            avoidanceTips = generateAvoidanceTips(jdText, merged);
             if (extracted.aiDegraded()) {
+                // AI 降级时不生成任何 AI 内容：锐评、锦囊都留空，只加一条系统提示，
+                // 避免"AI 挂了却仍给出建议"的错觉；也不写缓存，等 AI 恢复后重新提取
+                aiVerdict = null;
+                avoidanceTips = List.of();
                 merged.add(aiDownRecord());
             } else {
+                // 锐评只看真实风险信号，不把系统降级提示喂给模型
+                aiVerdict = generateVerdict(jdText, merged);
+                avoidanceTips = generateAvoidanceTips(jdText, merged);
                 jdSignalCache.put(jdText, extracted.signals(), aiVerdict, avoidanceTips);
             }
         }
@@ -169,7 +197,17 @@ public class AuditService {
                 jobAudit.getId(), merged.size(), aiVerdict, avoidanceTips.size());
 
         return new AuditResultResponse(jobAudit.getId(), companyName, jdText,
-                jobAudit.getStatus(), jobAudit.getCreatedAt(), merged, aiVerdict, avoidanceTips);
+                jobAudit.getStatus(), jobAudit.getCreatedAt(), merged, aiVerdict, avoidanceTips,
+                resolveNeutralVerdict(merged));
+    }
+
+    /**
+     * 零信号时的中性提示文案：仅当没有任何真实风险信号才返回，有信号时返回 null。
+     * 用于替代"0 分看起来像绝对安全"的误导。
+     */
+    public String resolveNeutralVerdict(List<AuditSignalRecord> signals) {
+        // AI 降级时"没抓到套路"没有说服力（语义风险根本没查），此时不显示中性提示
+        return (hasSystemSignal(signals) || hasRiskSignals(signals)) ? null : NEUTRAL_VERDICT;
     }
 
     /**
@@ -182,6 +220,11 @@ public class AuditService {
                 .orElse(null);
         if (cachedTips != null) {
             return cachedTips;
+        }
+        // AI 降级时不补通用建议：此时页面应明确提示"AI 不可用"，而不是给出看似正常的建议
+        if (hasSystemSignal(signals)) {
+            log.info("AI 降级状态，跳过避坑建议生成");
+            return List.of();
         }
         return generateAvoidanceTips(jdText, withoutSystemSignals(signals));
     }
@@ -232,12 +275,20 @@ public class AuditService {
                     jobAudit.getInterviewQuestions().lines().filter(line -> !line.isBlank()).toList());
         }
 
-        List<AuditSignalRecord> signals = withoutSystemSignals(signalRecordMapper.selectList(
-                new QueryWrapper<AuditSignalRecord>().eq("audit_id", auditId).orderByAsc("id")));
+        List<AuditSignalRecord> allSignals = signalRecordMapper.selectList(
+                new QueryWrapper<AuditSignalRecord>().eq("audit_id", auditId).orderByAsc("id"));
+        // AI 降级时不给通用话术：页面应明确显示"AI 不可用"，而不是用模板问题掩盖
+        if (hasSystemSignal(allSignals)) {
+            log.info("AI 降级状态，跳过面试反问话术，auditId={}", auditId);
+            return new InterviewQuestionsResponse(List.of());
+        }
+        List<AuditSignalRecord> signals = withoutSystemSignals(allSignals);
         log.info("生成面试反问话术，auditId={}，信号数={}", auditId, signals.size());
 
         if (signals.isEmpty()) {
-            return new InterviewQuestionsResponse(List.of());
+            // 零信号也给出通用反向背调问题：分数 0 只代表没命中已知风险模式，不代表不用背调
+            log.info("无风险信号，返回通用反向背调问题，auditId={}", auditId);
+            return new InterviewQuestionsResponse(GENERIC_QUESTIONS);
         }
 
         List<String> questions = callQuestionsModel(signals, jobAudit.getInputText());
@@ -254,7 +305,13 @@ public class AuditService {
      */
     private String generateVerdict(String jdText, List<AuditSignalRecord> signals) {
         if (!aiEnabled) {
-            log.info("AI 外呼已关闭（demo 模式），跳过毒舌锐评生成");
+            log.info("AI 外呼已关闭（demo 模式或未配置 Key），跳过毒舌锐评生成");
+            return null;
+        }
+        // 没有任何真实风险信号时不出锐评：否则会出现"0 条风险 + 毒舌吐槽"的自相矛盾页面，
+        // 模型在没有依据时也会硬找角度骂人。
+        if (!hasRiskSignals(signals)) {
+            log.info("无风险信号，跳过毒舌锐评生成");
             return null;
         }
         String signalSummary = signals.stream()
@@ -294,12 +351,13 @@ public class AuditService {
      * 演示模式或调用失败时降级为空列表，不阻断主流程，也不落库。
      */
     private List<String> generateAvoidanceTips(String jdText, List<AuditSignalRecord> signals) {
-        if (!aiEnabled) {
-            log.info("AI 外呼已关闭（demo 模式），跳过避坑建议生成");
-            return List.of();
+        // 无风险信号时给通用核实清单，不依赖模型，演示模式与无 Key 场景同样可用
+        if (!hasRiskSignals(signals)) {
+            log.info("无风险信号，返回通用避坑建议");
+            return GENERIC_TIPS;
         }
-        if (signals.isEmpty()) {
-            log.info("无风险信号，跳过避坑建议生成");
+        if (!aiEnabled) {
+            log.info("AI 外呼已关闭（demo 模式或未配置 Key），跳过避坑建议生成");
             return List.of();
         }
         String riskContext = signals.stream()
@@ -343,7 +401,7 @@ public class AuditService {
      */
     private List<String> callQuestionsModel(List<AuditSignalRecord> signals, String jdText) {
         if (!aiEnabled) {
-            log.info("AI 外呼已关闭（demo 模式），跳过面试反问话术生成");
+            log.info("AI 外呼已关闭（demo 模式或未配置 Key），跳过面试反问话术生成");
             return List.of();
         }
         String riskContext = signals.stream()
@@ -453,6 +511,16 @@ public class AuditService {
         return signals.stream()
                 .filter(record -> !SOURCE_SYSTEM.equals(record.getSource()))
                 .toList();
+    }
+
+    /** 是否存在真实风险信号：SYSTEM 来源的降级提示不算风险，不能作为锐评/锦囊的依据 */
+    private boolean hasRiskSignals(List<AuditSignalRecord> signals) {
+        return signals.stream().anyMatch(record -> !SOURCE_SYSTEM.equals(record.getSource()));
+    }
+
+    /** 是否处于 AI 降级状态（存在 SYSTEM 来源的 AI_SERVICE_DOWN 提示） */
+    private boolean hasSystemSignal(List<AuditSignalRecord> signals) {
+        return signals.stream().anyMatch(record -> SOURCE_SYSTEM.equals(record.getSource()));
     }
 
     /** LLM 不给 severity，按置信度映射：>=0.8 高危，>=0.5 中危，其余低危 */

@@ -34,6 +34,7 @@ interface AuditResult {
   createdAt: string
   signals: SignalRecord[]
   aiVerdict: string | null
+  neutralVerdict: string | null
   /** 避坑建议：后端按需生成、不落库；演示或无信号时为空数组 */
   avoidanceTips: string[]
 }
@@ -81,16 +82,18 @@ const severityScore: Record<string, number> = { HIGH: 100, MEDIUM: 60, LOW: 30 }
 
 /* ---------- 衍生计算 ---------- */
 
-/** 综合风险分数（0-100），供仪表盘使用 */
+/** 综合风险分数（0-95），供仪表盘使用 */
 const riskScore = computed<number>(() => {
   if (!audit.value) return 0
+  // 与仪表盘三档配色对齐：2 HIGH + 2 MEDIUM 刚好 90（红），1 HIGH + 2 MEDIUM 刚好 60（橙）。
+  // 封顶 95 而不是 100，避免"随便一段差 JD 就满分"。
   const weight: Record<string, number> = { HIGH: 30, MEDIUM: 15, LOW: 5 }
   const raw = audit.value.signals.reduce(
     // SYSTEM 信号（如 AI 服务降级提示）不代表岗位风险，不计入总分
     (acc, s) => (s.source === 'SYSTEM' ? acc : acc + (weight[s.severity] ?? 0)),
     0,
   )
-  return Math.min(100, raw)
+  return Math.min(95, raw)
 })
 
 /** 四个风险维度的当前值（0-100），供雷达图使用 */
@@ -106,6 +109,11 @@ const dimensionValues = computed<number[]>(() => {
   }
   return DIMENSIONS.map((d) => vals[d.key])
 })
+
+/** AI 是否降级：后端会追加一条 SYSTEM 来源的 AI_SERVICE_DOWN 信号 */
+const aiDegraded = computed<boolean>(
+  () => audit.value?.signals.some((s) => s.signalType === 'AI_SERVICE_DOWN') ?? false,
+)
 
 /* ---------- 信号卡片样式 ---------- */
 
@@ -222,19 +230,29 @@ async function handleExport() {
 
 const questions = ref<string[]>([])
 const questionsLoading = ref(false)
+/** 请求序号：新一轮审计发起后，旧请求的响应直接丢弃，避免旧话术回填 */
+let questionsRequestId = 0
 
 async function loadQuestions(auditId: number) {
+  const requestId = ++questionsRequestId
+  questions.value = []
   questionsLoading.value = true
   try {
     const res = await http.get<{ questions: string[] }>(
       `/api/audits/${auditId}/questions`,
     )
-    questions.value = res.data.questions
+    if (requestId === questionsRequestId) {
+      questions.value = res.data.questions
+    }
   } catch {
     // 话术生成失败不影响主页面，仅静默为空
-    questions.value = []
+    if (requestId === questionsRequestId) {
+      questions.value = []
+    }
   } finally {
-    questionsLoading.value = false
+    if (requestId === questionsRequestId) {
+      questionsLoading.value = false
+    }
   }
 }
 
@@ -243,7 +261,11 @@ async function loadQuestions(auditId: number) {
 /** 清空已有数据与图表 */
 function resetState() {
   audit.value = null
+  // 立刻清空，避免上一次审计的锦囊/话术残留在新请求的加载过程中
   questions.value = []
+  // 让仍在飞行中的反问话术请求失效，防止旧响应覆盖新一轮结果
+  questionsRequestId++
+  questionsLoading.value = false
   if (gaugeChart) {
     gaugeChart.dispose()
     gaugeChart = null
@@ -338,9 +360,13 @@ function backToInput() {
 function initGauge(score: number) {
   const dom = gaugeRef.value
   if (!dom) return
+  // 按当前分数取一个纯色，整块仪表盘的色相由它决定，不再使用固定红绿渐变
+  const color = getScoreColor(score)
   gaugeChart?.dispose()
   gaugeChart = echarts.init(dom, undefined, { renderer: 'canvas' })
   gaugeChart.setOption({
+    // 关闭入场动画：截图/导出时不会出现半截圆弧
+    animation: false,
     series: [
       {
         type: 'gauge',
@@ -349,15 +375,13 @@ function initGauge(score: number) {
         min: 0,
         max: 100,
         radius: '95%',
-        progress: { show: true, width: 16 },
+        // 进度条：纯色，无渐变
+        progress: { show: true, width: 16, roundCap: true, itemStyle: { color } },
+        // 背景圈：用单段色标（ECharts 推荐写法）铺满整圈，与进度条同色
         axisLine: {
           lineStyle: {
             width: 16,
-            color: [
-              [0.3, '#22c55e'],
-              [0.7, '#eab308'],
-              [1, '#ef4444'],
-            ],
+            color: [[1, color]],
           },
         },
         pointer: { show: false },
@@ -371,7 +395,7 @@ function initGauge(score: number) {
           offsetCenter: ['0%', '0%'],
           fontSize: 44,
           fontWeight: 800,
-          color: getScoreColor(score),
+          color,
           formatter: '{value}',
         },
         data: [{ value: score }],
@@ -380,10 +404,11 @@ function initGauge(score: number) {
   })
 }
 
+/** 分数 → 纯色：<60 绿，60~79 橙，>=80 红，不返回任何渐变 */
 function getScoreColor(score: number): string {
-  if (score >= 70) return '#ef4444'
-  if (score >= 40) return '#eab308'
-  return '#22c55e'
+  if (score >= 80) return '#ef4444'
+  if (score >= 60) return '#f59e0b'
+  return '#10b981'
 }
 
 function initRadar(values: number[]) {
@@ -679,8 +704,25 @@ onBeforeUnmount(() => {
               >
                 [ WARNING: AI VERDICT ]
               </div>
-              <p class="font-mono text-lg font-semibold text-amber-300 leading-relaxed">
+              <p class="flex-1 min-w-0 whitespace-normal break-words font-mono text-base sm:text-lg font-semibold text-amber-300 leading-relaxed">
                 {{ audit.aiVerdict }}
+              </p>
+            </div>
+
+            <!-- 零风险信号时的中性提示：不是吐槽，而是提醒"没命中套路 ≠ 安全" -->
+            <div
+              v-else-if="audit?.neutralVerdict"
+              class="mt-5 flex items-stretch gap-4 bg-slate-800/40 backdrop-blur-md border border-sky-500/30 rounded-xl px-4 py-3 shadow-[0_0_20px_rgba(56,189,248,0.10)]"
+            >
+              <div
+                class="shrink-0 self-center select-none border-2 border-sky-500/60 text-sky-400
+                       font-mono text-[10px] font-bold tracking-[0.15em] whitespace-nowrap
+                       px-2.5 py-1 rounded-sm"
+              >
+                [ NO KNOWN RISK PATTERN ]
+              </div>
+              <p class="flex-1 min-w-0 whitespace-normal break-words font-mono text-sm sm:text-base font-medium text-sky-200 leading-relaxed">
+                {{ audit.neutralVerdict }}
               </p>
             </div>
           </div>
@@ -768,9 +810,13 @@ onBeforeUnmount(() => {
 
           <div
             v-if="audit.signals.length === 0"
-            class="bg-slate-900/60 backdrop-blur-md border border-slate-700/50 rounded-2xl p-8 text-center text-slate-400"
+            class="bg-slate-900/60 backdrop-blur-md border border-slate-700/50 rounded-2xl p-8 text-center"
           >
-            ✅ 未检测到明显风险信号
+            <p class="text-base font-semibold text-slate-300">未命中已知风险模式</p>
+            <p class="mx-auto mt-2 max-w-2xl text-sm leading-relaxed text-slate-500">
+              0 分仅代表规则与模型都没有识别出已知套路，不等于这家公司绝对安全。
+              下方仍为你准备了通用的反向背调问题与核实清单。
+            </p>
           </div>
 
           <div v-else class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
@@ -831,8 +877,9 @@ onBeforeUnmount(() => {
           </div>
         </section>
 
-        <!-- AI 建议：面试反问话术 -->
+        <!-- AI 建议：面试反问话术（无话术时整块隐藏，避免只剩标题） -->
         <section
+          v-if="questionsLoading || questions.length > 0"
           class="bg-slate-900/60 backdrop-blur-md border border-slate-700/50 rounded-2xl shadow-2xl p-5"
         >
           <div class="flex items-center justify-between mb-4">
@@ -858,13 +905,6 @@ onBeforeUnmount(() => {
             AI 正在为您生成面试策略...
           </div>
 
-          <div
-            v-else-if="questions.length === 0"
-            class="text-slate-500 text-sm py-2"
-          >
-            暂无可用话术
-          </div>
-
           <ol v-else class="space-y-4">
             <li
               v-for="(q, i) in questions"
@@ -883,6 +923,14 @@ onBeforeUnmount(() => {
             </li>
           </ol>
         </section>
+
+        <!-- AI 降级提示：锦囊/话术都已隐藏时，用一行灰色小字说明原因 -->
+        <p
+          v-if="aiDegraded && !questionsLoading && questions.length === 0"
+          class="mt-6 text-center text-xs text-slate-500"
+        >
+          AI 服务暂不可用，暂无法生成针对性建议
+        </p>
       </template>
     </div>
   </div>

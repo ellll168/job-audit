@@ -91,15 +91,20 @@ public class SignalExtractionService {
     /** 模型未给出 confidence 时的兜底置信度 */
     private static final double DEFAULT_CONFIDENCE = 0.8;
 
+    /** 未配置 LLM_API_KEY 时使用的占位 Key，与 application.properties 中的默认值保持一致 */
+    private static final String PLACEHOLDER_API_KEY = "demo-mode-no-key";
+
     public SignalExtractionService(ChatModel chatModel,
-                                   @Value("${jobaudit.ai.enabled:true}") boolean aiEnabled) {
+                                   @Value("${jobaudit.ai.enabled:true}") boolean aiEnabled,
+                                   @Value("${langchain4j.open-ai.chat-model.api-key:}") String apiKey) {
         this.chatModel = chatModel;
-        this.aiEnabled = aiEnabled;
+        // 没有真实 Key 时自动关闭外呼：既保证服务能启动，也避免每次请求都等一次 401 重试
+        this.aiEnabled = aiEnabled && !apiKey.isBlank() && !PLACEHOLDER_API_KEY.equals(apiKey);
     }
 
     public ExtractedSignal extract(String jdText) {
         if (!aiEnabled) {
-            log.info("AI 外呼已关闭（demo 模式），跳过模型调用，直接转入 pending_review");
+            log.info("AI 外呼已关闭（demo 模式或未配置 Key），跳过模型调用，直接转入 pending_review");
             return ExtractedSignal.pendingReview(null);
         }
         String raw = null;

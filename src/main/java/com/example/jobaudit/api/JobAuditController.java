@@ -76,7 +76,8 @@ public class JobAuditController {
                 jobAudit.getCreatedAt(),
                 signals,
                 jobAudit.getAiVerdict(),
-                avoidanceTips);
+                avoidanceTips,
+                auditService.resolveNeutralVerdict(signals));
     }
 
     @GetMapping("/{id}/questions")
