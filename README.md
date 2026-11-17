@@ -28,6 +28,8 @@ H2 一键演示（不装数据库）→ 22 项自动化测试（无 MySQL、无 
 
 🎬 [点击观看演示视频（B 站）](https://www.bilibili.com/video/BV1rfsB6CEiU)
 
+📄 交付文档：[技术文档（HTML）](docs/technical-doc.html) · [技术文档（PDF）](docs/technical-doc.pdf) · [作品介绍（PDF）](docs/project-brief.pdf)
+
 ![结果页预览：风险总分仪表盘、毒舌锐评、避坑锦囊、风险维度雷达图与信号明细](docs/images/result-page.png)
 
 ---
@@ -425,7 +427,12 @@ job-audit/
 ├── src/test/resources/                  H2 测试库 schema 与配置
 ├── frontend/                            Vue3 + Vite + Tailwind + ECharts
 ├── prompts/sessions/                    每日 AI 会话快照（Vibe Coding 证据链）
-├── docs/                                技术文档与结果页截图
+├── docs/                                交付文档与配图
+│   ├── technical-doc.html               技术文档（可离线打开）
+│   ├── technical-doc.pdf                技术文档 PDF
+│   ├── project-brief.pdf                作品介绍 PDF
+│   ├── assets/                          文档内嵌截图
+│   └── images/result-page.png           结果页预览图（README 引用）
 ├── .github/workflows/ci.yml             后端测试 + 前端构建
 ├── .trae-context.md                     全局 AI 代码生成约束
 ├── .env.example                         环境变量模板（无任何真实密钥）

@@ -40,3 +40,7 @@ frontend/dist/
 .env
 
 scoped_dir*
+
+### 编辑器生成的临时产物 ###
+.trae-html-share-packages/
+.screenshots/
