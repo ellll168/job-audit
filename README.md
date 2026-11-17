@@ -1,7 +1,5 @@
 # job-audit 岗位反向尽调助手
 
-> 参赛作品 · 作者：谢嘉聪 · 广州商学院
-
 ![CI](https://github.com/ellll168/job-audit/actions/workflows/ci.yml/badge.svg)
 ![Java](https://img.shields.io/badge/Java-17-blue)
 ![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.5.7-brightgreen)
